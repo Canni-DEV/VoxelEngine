@@ -7,13 +7,12 @@ export class Chunk {
   public size: number;
   public mesh: THREE.Mesh;
   public terrainData: VoxelType[][][];
-  public modified: boolean = false;    // Marca si el chunk ha sido editado
+  public modified: boolean = false;
 
-  // Se genera la textura procedural una sola vez y se reutiliza en todos los chunks.
   public static proceduralTexture: THREE.CanvasTexture = Chunk.generateProceduralTexture();
 
   // Definición de las caras (cada cara tiene una dirección y 4 vértices locales)
-  private static FACE_DEFINITIONS = [
+  private static readonly FACE_DEFINITIONS = [
     // Izquierda (x = 0)
     {
       dir: [-1, 0, 0],
@@ -76,20 +75,33 @@ export class Chunk {
     }
   ];
 
-  // Colores base para cada tipo de voxel
-  private static WATER_COLOR = new THREE.Color(0x3399ff);
-  private static SAND_COLOR = new THREE.Color(0xC2B280);
-  private static GRASS_COLOR = new THREE.Color(0x00cc00);
-  private static DIRT_COLOR = new THREE.Color(0x8B4513);
-  private static MOUNTAIN_COLOR = new THREE.Color(0x888888);
-  private static SNOW_COLOR = new THREE.Color(0xffffff);
-  private static TRUNK_COLOR = new THREE.Color(0x513C29);
-  private static LEAVES_COLOR = new THREE.Color(0x116303);
+  // Colores predefinidos para cada tipo de voxel
+  private static readonly WATER_COLOR = new THREE.Color(0x3399ff);
+  private static readonly SAND_COLOR = new THREE.Color(0xC2B280);
+  private static readonly GRASS_COLOR = new THREE.Color(0x00cc00);
+  private static readonly DIRT_COLOR = new THREE.Color(0x8B4513);
+  private static readonly MOUNTAIN_COLOR = new THREE.Color(0x888888);
+  private static readonly SNOW_COLOR = new THREE.Color(0xffffff);
+  private static readonly TRUNK_COLOR = new THREE.Color(0x513C29);
+  private static readonly LEAVES_COLOR = new THREE.Color(0x116303);
+
+  // Lookup para obtener el color según el tipo de voxel.
+  private static readonly VOXEL_COLORS: { [key: number]: THREE.Color } = {
+    [VoxelType.WATER]: Chunk.WATER_COLOR,
+    [VoxelType.SAND]: Chunk.SAND_COLOR,
+    [VoxelType.GRASS]: Chunk.GRASS_COLOR,
+    [VoxelType.DIRT]: Chunk.DIRT_COLOR,
+    [VoxelType.MOUNTAIN]: Chunk.MOUNTAIN_COLOR,
+    [VoxelType.SNOW]: Chunk.SNOW_COLOR,
+    [VoxelType.TRUNK]: Chunk.TRUNK_COLOR,
+    [VoxelType.LEAVES]: Chunk.LEAVES_COLOR,
+  };
 
   constructor(x: number, z: number, size: number, terrainGenerator: TerrainGenerator) {
     this.x = x;
     this.z = z;
     this.size = size;
+    // Se genera y cachea el terrainData
     this.terrainData = terrainGenerator.generateChunk(x, z, size);
     this.mesh = this.createMesh();
     this.mesh.userData.chunk = this;
@@ -102,17 +114,16 @@ export class Chunk {
     canvas.height = texSize;
     const ctx = canvas.getContext('2d')!;
     const imageData = ctx.createImageData(texSize, texSize);
+    const totalPixels = texSize * texSize;
 
-    for (let y = 0; y < texSize; y++) {
-      for (let x = 0; x < texSize; x++) {
-        const index = (y * texSize + x) * 4;
-        const factor = 0.8 + Math.random() * 0.2; // Brillo entre 0.8 y 1.0
-        const value = Math.floor(255 * factor);
-        imageData.data[index] = value;
-        imageData.data[index + 1] = value;
-        imageData.data[index + 2] = value;
-        imageData.data[index + 3] = 255;
-      }
+    for (let i = 0; i < totalPixels; i++) {
+      const index = i * 4;
+      const factor = 0.8 + Math.random() * 0.2; // Brillo entre 0.8 y 1.0
+      const value = Math.floor(255 * factor);
+      imageData.data[index] = value;
+      imageData.data[index + 1] = value;
+      imageData.data[index + 2] = value;
+      imageData.data[index + 3] = 255;
     }
     ctx.putImageData(imageData, 0, 0);
 
@@ -134,10 +145,12 @@ export class Chunk {
 
     let vertexOffset = 0;
 
-    // Cacheo del alto máximo (número de niveles en Y) y offsets de posición del chunk.
-    const maxHeight = this.terrainData[0].length;
-    const worldOffsetX = this.x * this.size;
-    const worldOffsetZ = this.z * this.size;
+    // Caché de variables
+    const size = this.size;
+    const terrain = this.terrainData;
+    const maxHeight = terrain[0].length;
+    const worldOffsetX = this.x * size;
+    const worldOffsetZ = this.z * size;
 
     // UV fija para cada cara (se mapea la textura completa)
     const faceUVs = [
@@ -148,29 +161,31 @@ export class Chunk {
     ];
 
     // Recorremos cada posición en la matriz 3D.
-    for (let i = 0; i < this.size; i++) {
+    for (let i = 0; i < size; i++) {
       for (let j = 0; j < maxHeight; j++) {
-        for (let k = 0; k < this.size; k++) {
-          const voxel = this.terrainData[i][j][k];
+        const column = terrain[i][j];
+        for (let k = 0; k < size; k++) {
+          const voxel = column[k];
           if (voxel === VoxelType.AIR) continue; // No renderizamos aire
 
           // Para cada bloque, iteramos sobre sus caras
-          for (const face of Chunk.FACE_DEFINITIONS) {
+          for (let f = 0; f < Chunk.FACE_DEFINITIONS.length; f++) {
+            const face = Chunk.FACE_DEFINITIONS[f];
             const ni = i + face.dir[0];
             const nj = j + face.dir[1];
             const nk = k + face.dir[2];
 
             // Si el vecino está fuera de rango o es aire, renderizamos esta cara.
             if (
-              ni < 0 || ni >= this.size ||
+              ni < 0 || ni >= size ||
               nj < 0 || nj >= maxHeight ||
-              nk < 0 || nk >= this.size ||
-              this.terrainData[ni][nj][nk] === VoxelType.AIR
+              nk < 0 || nk >= size ||
+              terrain[ni][nj][nk] === VoxelType.AIR
             ) {
-              // Obtenemos el color según el tipo de voxel
-              const color = this.getColorFromVoxel(voxel, face.dir);
+              // Se obtiene el color del voxel a través del lookup.
+              const color = Chunk.VOXEL_COLORS[voxel] || new THREE.Color(0x000000);
 
-              for (let v = 0; v < face.vertices.length; v++) {
+              for (let v = 0; v < 4; v++) {
                 const vertex = face.vertices[v];
                 // Posición global
                 positions.push(
@@ -184,6 +199,7 @@ export class Chunk {
                 colors.push(color.r, color.g, color.b);
                 // Coordenadas UV
                 uvs.push(faceUVs[v][0], faceUVs[v][1]);
+                // Bandera para agua
                 waterFlags.push(voxel === VoxelType.WATER ? 1.0 : 0.0);
               }
 
@@ -202,10 +218,8 @@ export class Chunk {
     geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    // Nuevo atributo para identificar vértices de agua.
     geometry.setAttribute('isWater', new THREE.Float32BufferAttribute(waterFlags, 1));
     geometry.setIndex(indices);
-    // No llamamos a computeVertexNormals() porque asignamos las normales manualmente.
 
     const material = new THREE.MeshPhongMaterial({
       vertexColors: true,
@@ -219,41 +233,37 @@ export class Chunk {
     material.onBeforeCompile = (shader) => {
       // Añadimos el uniform para el tiempo.
       shader.uniforms.uTime = { value: 0.0 };
-    
+
       // Inyectamos en el fragment shader las declaraciones necesarias.
-      shader.fragmentShader = `
-        uniform float uTime;
-        varying float vIsWater;
-      ` + shader.fragmentShader;
-    
-      // Reemplazamos la inclusión del código de dithering para inyectar nuestro efecto.
+      shader.fragmentShader = `uniform float uTime;
+varying float vIsWater;
+` + shader.fragmentShader;
+
+      // Reemplazamos el código de dithering para inyectar el efecto de agua.
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <dithering_fragment>',
         `#include <dithering_fragment>
-         if (vIsWater > 0.5) {
-           // Efecto de olas: modula ligeramente la transparencia según el tiempo y la coordenada vUv.y.
-           float wave = 0.1 * sin(uTime * 50.0 + vUv.y * 10.0);
-           gl_FragColor.a = 0.5 + wave;
-           // Mezcla el color actual con un azul deseado para el agua.
-           gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.0, 0.5, 1.0), 0.5);
-         }
-        `
+if (vIsWater > 0.5) {
+  float wave = 0.1 * sin(uTime * 50.0 + vUv.y * 10.0);
+  gl_FragColor.a = 0.5 + wave;
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.0, 0.5, 1.0), 0.5);
+}
+`
       );
-    
-      // En el vertex shader, inyectamos nuestro atributo isWater y lo pasamos como varying.
-      shader.vertexShader = `
-        attribute float isWater;
-        varying float vIsWater;
-      ` + shader.vertexShader;
+
+      // Inyección en el vertex shader para pasar el atributo isWater.
+      shader.vertexShader = `attribute float isWater;
+varying float vIsWater;
+` + shader.vertexShader;
       
       shader.vertexShader = shader.vertexShader.replace(
         '#include <color_vertex>',
         `#include <color_vertex>
-         vIsWater = isWater;
-        `
+vIsWater = isWater;
+`
       );
-    
-      // Guardamos el shader en userData para poder actualizar uTime en el render loop.
+
+      // Guardamos el shader en userData para actualizar uTime en el render loop.
       (material as any).userData.shader = shader;
     };
 
@@ -263,35 +273,12 @@ export class Chunk {
     return mesh;
   }
 
-  private getColorFromVoxel(voxel: VoxelType, faceDir: number[]): THREE.Color {
-    switch (voxel) {
-      case VoxelType.WATER:
-        return Chunk.WATER_COLOR;
-      case VoxelType.SAND:
-        return Chunk.SAND_COLOR;
-      case VoxelType.GRASS:
-        return Chunk.GRASS_COLOR;
-      case VoxelType.DIRT:
-        return Chunk.DIRT_COLOR;
-      case VoxelType.MOUNTAIN:
-        return Chunk.MOUNTAIN_COLOR;
-      case VoxelType.SNOW:
-        return Chunk.SNOW_COLOR;
-      case VoxelType.TRUNK:
-        return Chunk.TRUNK_COLOR;
-      case VoxelType.LEAVES:
-        return Chunk.LEAVES_COLOR;
-      default:
-        return new THREE.Color(0x000000);
-    }
-  }
-
-  /**
-  * Permite actualizar (modificar) el voxel en la posición local (x, y, z)
-  * y reconstruir la malla del chunk.
-  */
   public updateVoxel(localX: number, y: number, localZ: number, newType: VoxelType): void {
-    if (localX < 0 || localX >= this.size || localZ < 0 || localZ >= this.size || y < 0 || y >= this.terrainData[0].length) {
+    if (
+      localX < 0 || localX >= this.size ||
+      localZ < 0 || localZ >= this.size ||
+      y < 0 || y >= this.terrainData[0].length
+    ) {
       return;
     }
     this.terrainData[localX][y][localZ] = newType;
@@ -299,26 +286,17 @@ export class Chunk {
     this.rebuildMesh();
   }
 
-  /**
-   * Reconstruye la malla del chunk a partir de los datos actuales.
-   */
   public rebuildMesh(): void {
-    // Se crea una nueva geometría y material a partir de los datos actuales,
-    // utilizando el mismo método que se usa para construir el mesh inicialmente.
     const newMesh = this.createMesh();
-    // Liberamos la memoria ocupada por la geometría y material antiguos.
     if (this.mesh.material instanceof THREE.Material) {
-      this.mesh.material.dispose()
+      this.mesh.material.dispose();
     } else if (Array.isArray(this.mesh.material)) {
       for (const material of this.mesh.material) {
-        material.dispose()
+        material.dispose();
       }
     }
     this.mesh.geometry.dispose();
 
-    // Actualizamos la geometría y material del mesh existente (in-place).
-    // Esto es importante para que el mesh referenciado en la escena siga siendo el mismo objeto,
-    // evitando tener que removerlo y agregarlo de nuevo, lo que puede afectar a otras referencias (por ejemplo, en el raycaster).
     this.mesh.geometry = newMesh.geometry;
     this.mesh.material = newMesh.material;
     this.mesh.userData.chunk = this;
@@ -326,10 +304,10 @@ export class Chunk {
 
   public Delete(): void {
     if (this.mesh.material instanceof THREE.Material) {
-      this.mesh.material.dispose()
+      this.mesh.material.dispose();
     } else if (Array.isArray(this.mesh.material)) {
       for (const material of this.mesh.material) {
-        material.dispose()
+        material.dispose();
       }
     }
     this.mesh.geometry.dispose();

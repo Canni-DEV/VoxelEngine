@@ -42,9 +42,15 @@ export class Renderer {
     this.scene.add(ambientLight);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(-50, 100, -50);
+    directionalLight.position.set(0, 300, 50);
     directionalLight.castShadow = true;
     this.scene.add(directionalLight);
+
+    //Set up shadow properties for the light
+    directionalLight.shadow.mapSize.width = 512; // default
+    directionalLight.shadow.mapSize.height = 512; // default
+    directionalLight.shadow.camera.near = 0.5; // default
+    directionalLight.shadow.camera.far = 500; // default
 
     // Configurar composer para postprocesado
     this.composer = new EffectComposer(this.renderer);

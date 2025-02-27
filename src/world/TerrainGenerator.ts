@@ -41,7 +41,7 @@ export class TerrainGenerator {
   private readonly riverThreshold: number = 0.25;
 
   // Parámetro para la frecuencia de árboles (por columna elegible)
-  private readonly treeFrequency: number = 0.05; // 5% de las columnas con pasto spawnearán un árbol
+  private readonly treeFrequency: number = 0.03; // 3% de las columnas con pasto spawnearán un árbol
 
   private noiseGen: SimplexNoiseGenerator;
 
@@ -49,10 +49,6 @@ export class TerrainGenerator {
     this.noiseGen = new SimplexNoiseGenerator("seed");
   }
 
-  /**
-   * Calcula las propiedades del terreno en (worldX, worldZ)
-   * Devuelve: { height, temperature, river }
-   */
   private computeTerrainProperties(worldX: number, worldZ: number): { height: number, temperature: number, river: boolean } {
     const baseNoise = this.noiseGen.noise(worldX * this.baseFrequency, worldZ * this.baseFrequency);
     const baseHeight = baseNoise * this.baseAmplitude;
@@ -81,7 +77,6 @@ export class TerrainGenerator {
    * chunkX y chunkZ son las coordenadas del chunk en el mundo.
    */
   generateChunk(chunkX: number, chunkZ: number, size: number): VoxelType[][][] {
-    // Inicializar la matriz 3D con AIR.
     const data: VoxelType[][][] = [];
     for (let x = 0; x < size; x++) {
       data[x] = [];
@@ -90,7 +85,6 @@ export class TerrainGenerator {
       }
     }
 
-    // Generar la base del terreno.
     for (let x = 0; x < size; x++) {
       for (let z = 0; z < size; z++) {
         const worldX = x + chunkX * size;
@@ -130,16 +124,12 @@ export class TerrainGenerator {
       }
     }
 
-    // Spawnear árboles en columnas elegibles (solo sobre GRASS sin voxel encima).
     this.spawnTrees(data, size);
 
     return data;
   }
 
-  /**
-   * Itera sobre las columnas del chunk y, si la capa superior es GRASS y está expuesta (sin voxeles arriba),
-   * con cierta frecuencia se "spawnea" un árbol.
-   */
+
   private spawnTrees(data: VoxelType[][][], size: number): void {
     for (let x = 0; x < size; x++) {
       for (let z = 0; z < size; z++) {
@@ -197,9 +187,7 @@ export class TerrainGenerator {
     }
   }
 
-  /**
-   * Genera un chunk de prueba con un solo voxel en el centro (útil para debugging).
-   */
+
   generateTestChunk(chunkX: number, chunkZ: number, size: number): VoxelType[][][] {
     const data: VoxelType[][][] = [];
     for (let x = 0; x < size; x++) {
