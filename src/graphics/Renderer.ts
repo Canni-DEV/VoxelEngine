@@ -41,15 +41,15 @@ export class Renderer {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
     this.scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(0, 300, 50);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    directionalLight.position.set(0, 500, 50);
     directionalLight.castShadow = true;
     this.scene.add(directionalLight);
 
     //Set up shadow properties for the light
-    directionalLight.shadow.mapSize.width = 512; // default
-    directionalLight.shadow.mapSize.height = 512; // default
-    directionalLight.shadow.camera.near = 0.5; // default
+    directionalLight.shadow.mapSize.width = 1024; // default
+    directionalLight.shadow.mapSize.height = 1024; // default
+    directionalLight.shadow.camera.near = 0.1; // default
     directionalLight.shadow.camera.far = 500; // default
 
     // Configurar composer para postprocesado
@@ -72,12 +72,12 @@ export class Renderer {
     this.outlinePass.visibleEdgeColor.set('#ffffff');
     this.outlinePass.hiddenEdgeColor.set('#190a05');
     // Si deseas resaltar objetos específicos, puedes asignarlos a outlinePass.selectedObjects.
-    this.composer.addPass(this.outlinePass);
+    //this.composer.addPass(this.outlinePass);
 
     // FXAA para anti-aliasing
     this.fxaaPass = new ShaderPass(FXAAShader);
     this.fxaaPass.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
-    this.composer.addPass(this.fxaaPass);
+    //this.composer.addPass(this.fxaaPass);
 
     window.addEventListener('resize', this.onWindowResize.bind(this), false);
   }
