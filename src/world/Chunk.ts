@@ -11,71 +11,7 @@ export class Chunk {
 
   public static proceduralTexture: THREE.CanvasTexture = Chunk.generateProceduralTexture();
 
-  // Definición de las caras (cada cara tiene una dirección y 4 vértices locales)
-  private static readonly FACE_DEFINITIONS = [
-    // Izquierda (x = 0)
-    {
-      dir: [-1, 0, 0],
-      vertices: [
-        [0, 0, 1],
-        [0, 1, 1],
-        [0, 1, 0],
-        [0, 0, 0]
-      ]
-    },
-    // Derecha (x = 1)
-    {
-      dir: [1, 0, 0],
-      vertices: [
-        [1, 0, 0],
-        [1, 1, 0],
-        [1, 1, 1],
-        [1, 0, 1]
-      ]
-    },
-    // Inferior (y = 0)
-    {
-      dir: [0, -1, 0],
-      vertices: [
-        [0, 0, 0],
-        [1, 0, 0],
-        [1, 0, 1],
-        [0, 0, 1]
-      ]
-    },
-    // Superior (y = 1)
-    {
-      dir: [0, 1, 0],
-      vertices: [
-        [0, 1, 1],
-        [1, 1, 1],
-        [1, 1, 0],
-        [0, 1, 0]
-      ]
-    },
-    // Trasera (z = 0)
-    {
-      dir: [0, 0, -1],
-      vertices: [
-        [0, 0, 0],
-        [0, 1, 0],
-        [1, 1, 0],
-        [1, 0, 0]
-      ]
-    },
-    // Frontal (z = 1)
-    {
-      dir: [0, 0, 1],
-      vertices: [
-        [1, 0, 1],
-        [1, 1, 1],
-        [0, 1, 1],
-        [0, 0, 1]
-      ]
-    }
-  ];
-
-  // Colores predefinidos para cada tipo de voxel
+  // Colores y lookup para cada tipo de voxel.
   private static readonly WATER_COLOR = new THREE.Color(0x3399ff);
   private static readonly SAND_COLOR = new THREE.Color(0xC2B280);
   private static readonly GRASS_COLOR = new THREE.Color(0x00cc00);
@@ -85,7 +21,6 @@ export class Chunk {
   private static readonly TRUNK_COLOR = new THREE.Color(0x513C29);
   private static readonly LEAVES_COLOR = new THREE.Color(0x116303);
 
-  // Lookup para obtener el color según el tipo de voxel.
   private static readonly VOXEL_COLORS: { [key: number]: THREE.Color } = {
     [VoxelType.WATER]: Chunk.WATER_COLOR,
     [VoxelType.SAND]: Chunk.SAND_COLOR,
@@ -101,7 +36,6 @@ export class Chunk {
     this.x = x;
     this.z = z;
     this.size = size;
-    // Se genera y cachea el terrainData
     this.terrainData = terrainGenerator.generateChunk(x, z, size);
     this.mesh = this.createMesh();
     this.mesh.userData.chunk = this;
@@ -118,7 +52,7 @@ export class Chunk {
 
     for (let i = 0; i < totalPixels; i++) {
       const index = i * 4;
-      const factor = 0.8 + Math.random() * 0.2; // Brillo entre 0.8 y 1.0
+      const factor = 0.8 + Math.random() * 0.2;
       const value = Math.floor(255 * factor);
       imageData.data[index] = value;
       imageData.data[index + 1] = value;
@@ -135,78 +69,186 @@ export class Chunk {
     return texture;
   }
 
+  /**
+   * Retorna el voxel en la posición dada; si está fuera de rango se considera AIR.
+   */
+  private getVoxel(x: number, y: number, z: number): VoxelType {
+    if (x < 0 || x >= this.size || y < 0 || y >= this.terrainData[0].length || z < 0 || z >= this.size) {
+      return VoxelType.AIR;
+    }
+    return this.terrainData[x][y][z];
+  }
+
+  /**
+   * Crea la malla del chunk aplicando greedy meshing.
+   *
+   * Se recorre cada eje (d = 0: X, d = 1: Y, d = 2: Z). Para cada slice se construye una máscara 2D
+   * comparando el voxel actual (voxelA) y su vecino en la dirección opuesta (voxelB). Se marca la celda
+   * cuando una cara está expuesta, se fusionan áreas contiguas y se generan los buffers de vértices, índices,
+   * normales, colores y UV. Ahora los UV se calculan en función del tamaño del quad (w, h) y se ajusta su
+   * orden para ciertas caras laterales.
+   */
   private createMesh(): THREE.Mesh {
     const positions: number[] = [];
     const indices: number[] = [];
     const colors: number[] = [];
     const normals: number[] = [];
     const uvs: number[] = [];
-    const waterFlags: number[] = []; // 1.0 si el voxel es WATER, 0.0 en caso contrario.
+    const waterFlags: number[] = [];
 
+    const dims = [this.size, this.terrainData[0].length, this.size];
+    const worldOffset = new THREE.Vector3(this.x * this.size, 0, this.z * this.size);
     let vertexOffset = 0;
 
-    // Caché de variables
-    const size = this.size;
-    const terrain = this.terrainData;
-    const maxHeight = terrain[0].length;
-    const worldOffsetX = this.x * size;
-    const worldOffsetZ = this.z * size;
+    // Iterar sobre cada eje: 0 (X), 1 (Y), 2 (Z)
+    for (let d = 0; d < 3; d++) {
+      const u = (d + 1) % 3;
+      const v = (d + 2) % 3;
 
-    // UV fija para cada cara (se mapea la textura completa)
-    const faceUVs = [
-      [0, 0],
-      [0, 1],
-      [1, 1],
-      [1, 0]
-    ];
+      const x = [0, 0, 0];
+      const q = [0, 0, 0];
+      q[d] = 1;
 
-    // Recorremos cada posición en la matriz 3D.
-    for (let i = 0; i < size; i++) {
-      for (let j = 0; j < maxHeight; j++) {
-        const column = terrain[i][j];
-        for (let k = 0; k < size; k++) {
-          const voxel = column[k];
-          if (voxel === VoxelType.AIR) continue; // No renderizamos aire
+      for (x[d] = 0; x[d] <= dims[d]; x[d]++) {
+        // Crear máscara 2D para la slice actual
+        const mask: (null | { voxel: VoxelType; backface: boolean })[] = new Array(dims[u] * dims[v]).fill(null);
 
-          // Para cada bloque, iteramos sobre sus caras
-          for (let f = 0; f < Chunk.FACE_DEFINITIONS.length; f++) {
-            const face = Chunk.FACE_DEFINITIONS[f];
-            const ni = i + face.dir[0];
-            const nj = j + face.dir[1];
-            const nk = k + face.dir[2];
+        for (let j = 0; j < dims[v]; j++) {
+          for (let i = 0; i < dims[u]; i++) {
+            x[u] = i;
+            x[v] = j;
 
-            // Si el vecino está fuera de rango o es aire, renderizamos esta cara.
-            if (
-              ni < 0 || ni >= size ||
-              nj < 0 || nj >= maxHeight ||
-              nk < 0 || nk >= size ||
-              terrain[ni][nj][nk] === VoxelType.AIR
-            ) {
-              // Se obtiene el color del voxel a través del lookup.
-              const color = Chunk.VOXEL_COLORS[voxel] || new THREE.Color(0x000000);
+            let voxelA: VoxelType;
+            let voxelB: VoxelType;
 
-              for (let v = 0; v < 4; v++) {
-                const vertex = face.vertices[v];
-                // Posición global
-                positions.push(
-                  vertex[0] + i + worldOffsetX,
-                  vertex[1] + j,
-                  vertex[2] + k + worldOffsetZ
-                );
-                // Normal fija (ya es un vector unitario)
-                normals.push(face.dir[0], face.dir[1], face.dir[2]);
-                // Color obtenido
-                colors.push(color.r, color.g, color.b);
-                // Coordenadas UV
-                uvs.push(faceUVs[v][0], faceUVs[v][1]);
-                // Bandera para agua
-                waterFlags.push(voxel === VoxelType.WATER ? 1.0 : 0.0);
+            if (x[d] < dims[d]) {
+              voxelA = this.getVoxel(x[0], x[1], x[2]);
+            } else {
+              voxelA = VoxelType.AIR;
+            }
+            if (x[d] > 0) {
+              const pos = [x[0] - q[0], x[1] - q[1], x[2] - q[2]];
+              voxelB = this.getVoxel(pos[0], pos[1], pos[2]);
+            } else {
+              voxelB = VoxelType.AIR;
+            }
+
+            let maskValue: null | { voxel: VoxelType; backface: boolean } = null;
+            if (voxelA !== VoxelType.AIR && voxelB === VoxelType.AIR) {
+              maskValue = { voxel: voxelA, backface: true };
+            } else if (voxelA === VoxelType.AIR && voxelB !== VoxelType.AIR) {
+              maskValue = { voxel: voxelB, backface: false };
+            }
+            mask[i + j * dims[u]] = maskValue;
+          }
+        }
+
+        // Aplicar greedy meshing sobre la máscara 2D
+        for (let j = 0; j < dims[v]; j++) {
+          for (let i = 0; i < dims[u]; ) {
+            const idx = i + j * dims[u];
+            const cell = mask[idx];
+            if (cell) {
+              let w = 1;
+              while (
+                i + w < dims[u] &&
+                mask[idx + w] &&
+                mask[idx + w]!.voxel === cell.voxel &&
+                mask[idx + w]!.backface === cell.backface
+              ) {
+                w++;
+              }
+              let h = 1;
+              outer: for (; j + h < dims[v]; h++) {
+                for (let k = 0; k < w; k++) {
+                  const nextCell = mask[i + k + (j + h) * dims[u]];
+                  if (!nextCell || nextCell.voxel !== cell.voxel || nextCell.backface !== cell.backface) {
+                    break outer;
+                  }
+                }
               }
 
-              // Índices para formar dos triángulos
+              x[u] = i;
+              x[v] = j;
+              const pos = [x[0], x[1], x[2]];
+
+              const du = [0, 0, 0];
+              const dv = [0, 0, 0];
+              du[u] = w;
+              dv[v] = h;
+
+              const vertices = new Array(4).fill(null).map(() => [0, 0, 0]);
+              if (!cell.backface) {
+                // Cara en la dirección positiva (normal = q)
+                vertices[0] = [pos[0], pos[1], pos[2]];
+                vertices[1] = [pos[0] + du[0], pos[1] + du[1], pos[2] + du[2]];
+                vertices[2] = [pos[0] + du[0] + dv[0], pos[1] + du[1] + dv[1], pos[2] + du[2] + dv[2]];
+                vertices[3] = [pos[0] + dv[0], pos[1] + dv[1], pos[2] + dv[2]];
+              } else {
+                // Cara en la dirección negativa (normal = -q)
+                vertices[0] = [pos[0], pos[1], pos[2]];
+                vertices[1] = [pos[0] + dv[0], pos[1] + dv[1], pos[2] + dv[2]];
+                vertices[2] = [pos[0] + du[0] + dv[0], pos[1] + du[1] + dv[1], pos[2] + du[2] + dv[2]];
+                vertices[3] = [pos[0] + du[0], pos[1] + du[1], pos[2] + du[2]];
+              }
+
+              // Sumar el offset global del chunk
+              for (let n = 0; n < 4; n++) {
+                vertices[n][0] += worldOffset.x;
+                vertices[n][1] += worldOffset.y;
+                vertices[n][2] += worldOffset.z;
+              }
+
+              // Calcular la normal (se invierte si es backface)
+              const normal = [q[0], q[1], q[2]];
+              if (cell.backface) {
+                normal[0] = -normal[0];
+                normal[1] = -normal[1];
+                normal[2] = -normal[2];
+              }
+
+              const voxelColor = Chunk.VOXEL_COLORS[cell.voxel] || new THREE.Color(0x000000);
+              const isWater = cell.voxel === VoxelType.WATER ? 1.0 : 0.0;
+
+              // Calcular UV escalados según el tamaño del quad.
+              // Para caras laterales (d ≠ 1) y backface, invertimos el orden horizontal.
+              let uvCoords: [number, number][];
+              if (d !== 1 && cell.backface) {
+                uvCoords = [
+                  [0, 0],
+                  [0, h],
+                  [w, h],
+                  [w, 0]
+                ];
+              } else {
+                uvCoords = [
+                  [0, 0],
+                  [w, 0],
+                  [w, h],
+                  [0, h]
+                ];
+              }
+
+              for (let n = 0; n < 4; n++) {
+                positions.push(vertices[n][0], vertices[n][1], vertices[n][2]);
+                normals.push(normal[0], normal[1], normal[2]);
+                colors.push(voxelColor.r, voxelColor.g, voxelColor.b);
+                uvs.push(uvCoords[n][0], uvCoords[n][1]);
+                waterFlags.push(isWater);
+              }
+
               indices.push(vertexOffset, vertexOffset + 1, vertexOffset + 2);
               indices.push(vertexOffset, vertexOffset + 2, vertexOffset + 3);
               vertexOffset += 4;
+
+              for (let l = 0; l < h; l++) {
+                for (let k = 0; k < w; k++) {
+                  mask[i + k + (j + l) * dims[u]] = null;
+                }
+              }
+              i += w;
+            } else {
+              i++;
             }
           }
         }
@@ -226,20 +268,14 @@ export class Chunk {
       map: Chunk.proceduralTexture,
       side: THREE.FrontSide,
       flatShading: true,
-      transparent: true // Permitir transparencia
+      transparent: true
     });
 
-    // Inyectamos código en el shader solo para voxeles de agua.
     material.onBeforeCompile = (shader) => {
-      // Añadimos el uniform para el tiempo.
       shader.uniforms.uTime = { value: 0.0 };
-
-      // Inyectamos en el fragment shader las declaraciones necesarias.
       shader.fragmentShader = `uniform float uTime;
 varying float vIsWater;
 ` + shader.fragmentShader;
-
-      // Reemplazamos el código de dithering para inyectar el efecto de agua.
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <dithering_fragment>',
         `#include <dithering_fragment>
@@ -250,20 +286,15 @@ if (vIsWater > 0.5) {
 }
 `
       );
-
-      // Inyección en el vertex shader para pasar el atributo isWater.
       shader.vertexShader = `attribute float isWater;
 varying float vIsWater;
 ` + shader.vertexShader;
-      
       shader.vertexShader = shader.vertexShader.replace(
         '#include <color_vertex>',
         `#include <color_vertex>
 vIsWater = isWater;
 `
       );
-
-      // Guardamos el shader en userData para actualizar uTime en el render loop.
       (material as any).userData.shader = shader;
     };
 
@@ -275,9 +306,12 @@ vIsWater = isWater;
 
   public updateVoxel(localX: number, y: number, localZ: number, newType: VoxelType): void {
     if (
-      localX < 0 || localX >= this.size ||
-      localZ < 0 || localZ >= this.size ||
-      y < 0 || y >= this.terrainData[0].length
+      localX < 0 ||
+      localX >= this.size ||
+      localZ < 0 ||
+      localZ >= this.size ||
+      y < 0 ||
+      y >= this.terrainData[0].length
     ) {
       return;
     }
