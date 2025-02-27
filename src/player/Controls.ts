@@ -258,15 +258,13 @@ export class Controls {
   }
 
   private onDeviceOrientation(event: DeviceOrientationEvent) {
-    // Verificar que se tengan los datos
     if (event.alpha === null || event.beta === null || event.gamma === null) return;
-    
-    // Convertir a radianes
+  
     const alpha = THREE.MathUtils.degToRad(event.alpha);
     const beta = THREE.MathUtils.degToRad(event.beta);
     const gamma = THREE.MathUtils.degToRad(event.gamma);
     const orient = window.orientation ? THREE.MathUtils.degToRad(window.orientation) : 0;
-    
+  
     // Adaptación del algoritmo de THREE.DeviceOrientationControls:
     const zee = new THREE.Vector3(0, 0, 1);
     const euler = new THREE.Euler();
@@ -279,7 +277,14 @@ export class Controls {
     
     // Actualizar la orientación de la cámara
     this.player.camera.quaternion.copy(quaternion);
+    
+    // Extraer yaw y pitch desde el quaternion y actualizarlos para que el movimiento del player sea coherente
+    const euler2 = new THREE.Euler(0, 0, 0, 'YXZ');
+    euler2.setFromQuaternion(quaternion, 'YXZ');
+    this.yaw = euler2.y;
+    this.pitch = euler2.x;
   }
+  
 
   public update() {
     const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
