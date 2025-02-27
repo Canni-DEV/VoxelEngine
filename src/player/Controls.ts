@@ -17,7 +17,7 @@ export class Controls {
   
   private pointerLocked = false;
   
-  // Ángulos para la vista (en radianes)
+  // Ángulos para la vista (en radianes) – se usan en mouse/teclado
   private yaw = 0;
   private pitch = 0;
   
@@ -27,10 +27,26 @@ export class Controls {
   private readonly jumpSpeed = 0.2;
   private readonly sensitivity = 0.002;
 
+  // Variables para controles táctiles (ya existentes)
+  private isTouching = false;
+  private lastTouchX = 0;
+  private lastTouchY = 0;
+
   constructor(player: Player, domElement: HTMLElement) {
     this.player = player;
     this.domElement = domElement;
     this.init();
+
+    // Si hay soporte para sensores de orientación, se habilita el control por giroscopio
+    if ('DeviceOrientationEvent' in window) {
+      this.enableDeviceOrientation();
+    }
+
+    // Si se detecta dispositivo táctil, también se agregan controles táctiles
+    if ('ontouchstart' in window) {
+      this.addTouchControls();
+      this.createMobileUI();
+    }
   }
 
   private init() {
@@ -50,31 +66,24 @@ export class Controls {
       
       case 'Space':
         if (this.player.flying) {
-          // En vuelo, Space eleva
           this.moveUp = true;
         } else {
-          // En modo normal, Space salta (solo si está en el suelo)
-            this.player.velocity.y = this.jumpSpeed; // velocidad de salto
+          this.player.velocity.y = this.jumpSpeed;
         }
         break;
       
       case 'ShiftLeft':
         if (this.player.flying) {
-          // En vuelo, Shift baja
           this.moveDown = true;
         }
         break;
       
       case 'KeyF':
-        // Alterna entre modo vuelo y modo normal
         this.player.flying = !this.player.flying;
-        if (this.player.flying)
-        {
+        if (this.player.flying) {
           this.speed = 1;
           this.verticalSpeed = 1;
-        }
-        else
-        {
+        } else {
           this.speed = 0.06;
           this.verticalSpeed = 0.06;
         }
@@ -101,47 +110,187 @@ export class Controls {
   private onMouseMove(event: MouseEvent) {
     if (!this.pointerLocked) return;
   
-    // Actualiza los ángulos según el movimiento del mouse
-    // Nota: en muchos FPS se suma movementX para yaw y se resta movementY para pitch,
-    // pero puedes ajustar según la orientación deseada.
     this.yaw -= event.movementX * this.sensitivity;
     this.pitch -= event.movementY * this.sensitivity;
-  
-    // Limitar el pitch para evitar mirar más allá de 90° hacia arriba o abajo
     this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
-  
-    // Establecer el orden de rotación a 'YXZ' para un control FPS adecuado
     this.player.camera.rotation.order = 'YXZ';
-  
-    // Aplicar la rotación: 
-    // - yaw (alrededor del eje Y) para mirar de lado,
-    // - pitch (alrededor del eje X) para mirar arriba/abajo.
-    // Se deja el roll (eje Z) en 0 para evitar giros laterales inesperados.
     this.player.camera.rotation.x = this.pitch;
     this.player.camera.rotation.y = this.yaw;
     this.player.camera.rotation.z = 0;
   }
-  
+
+  // --- Controles táctiles (ya existentes) ---
+  private addTouchControls() {
+    this.domElement.addEventListener('touchstart', (e) => this.onTouchStart(e), false);
+    this.domElement.addEventListener('touchmove', (e) => this.onTouchMove(e), false);
+    this.domElement.addEventListener('touchend', (e) => this.onTouchEnd(e), false);
+  }
+
+  private onTouchStart(event: TouchEvent) {
+    if (event.touches.length === 1) {
+      this.isTouching = true;
+      this.lastTouchX = event.touches[0].clientX;
+      this.lastTouchY = event.touches[0].clientY;
+    }
+  }
+
+  private onTouchMove(event: TouchEvent) {
+    if (!this.isTouching || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const deltaX = touch.clientX - this.lastTouchX;
+    const deltaY = touch.clientY - this.lastTouchY;
+    this.lastTouchX = touch.clientX;
+    this.lastTouchY = touch.clientY;
+    this.yaw -= deltaX * this.sensitivity;
+    this.pitch -= deltaY * this.sensitivity;
+    this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
+    this.player.camera.rotation.order = 'YXZ';
+    this.player.camera.rotation.x = this.pitch;
+    this.player.camera.rotation.y = this.yaw;
+    this.player.camera.rotation.z = 0;
+    event.preventDefault();
+  }
+
+  private onTouchEnd(event: TouchEvent) {
+    this.isTouching = false;
+  }
+
+  private createMobileUI() {
+    // Controles direccionales en la esquina inferior izquierda
+    const dirContainer = document.createElement('div');
+    dirContainer.id = 'mobile-dir-controls';
+    Object.assign(dirContainer.style, {
+      position: 'absolute',
+      bottom: '20px',
+      left: '20px',
+      display: 'grid',
+      gridTemplateColumns: '60px 60px 60px',
+      gridTemplateRows: '60px 60px 60px',
+      gap: '5px',
+      zIndex: '1000'
+    });
+    const btnUp = this.createMobileButton('↑');
+    btnUp.addEventListener('touchstart', (e) => { this.moveForward = true; e.preventDefault(); });
+    btnUp.addEventListener('touchend', (e) => { this.moveForward = false; e.preventDefault(); });
+    const btnDown = this.createMobileButton('↓');
+    btnDown.addEventListener('touchstart', (e) => { this.moveBackward = true; e.preventDefault(); });
+    btnDown.addEventListener('touchend', (e) => { this.moveBackward = false; e.preventDefault(); });
+    const btnLeft = this.createMobileButton('←');
+    btnLeft.addEventListener('touchstart', (e) => { this.moveLeft = true; e.preventDefault(); });
+    btnLeft.addEventListener('touchend', (e) => { this.moveLeft = false; e.preventDefault(); });
+    const btnRight = this.createMobileButton('→');
+    btnRight.addEventListener('touchstart', (e) => { this.moveRight = true; e.preventDefault(); });
+    btnRight.addEventListener('touchend', (e) => { this.moveRight = false; e.preventDefault(); });
+    const empty = this.createMobileButton('');
+    empty.style.visibility = 'hidden';
+    dirContainer.appendChild(empty);
+    dirContainer.appendChild(btnUp);
+    dirContainer.appendChild(empty.cloneNode());
+    dirContainer.appendChild(btnLeft);
+    dirContainer.appendChild(empty.cloneNode());
+    dirContainer.appendChild(btnRight);
+    dirContainer.appendChild(empty.cloneNode());
+    dirContainer.appendChild(btnDown);
+    dirContainer.appendChild(empty.cloneNode());
+    document.body.appendChild(dirContainer);
+
+    // Botones de acción en la esquina inferior derecha
+    const actionContainer = document.createElement('div');
+    actionContainer.id = 'mobile-action-controls';
+    Object.assign(actionContainer.style, {
+      position: 'absolute',
+      bottom: '20px',
+      right: '20px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      zIndex: '1000'
+    });
+    const btnActionLeft = this.createMobileButton('L');
+    btnActionLeft.addEventListener('touchstart', (e) => { this.handleActionLeft(); e.preventDefault(); });
+    const btnActionRight = this.createMobileButton('R');
+    btnActionRight.addEventListener('touchstart', (e) => { this.handleActionRight(); e.preventDefault(); });
+    actionContainer.appendChild(btnActionLeft);
+    actionContainer.appendChild(btnActionRight);
+    document.body.appendChild(actionContainer);
+  }
+
+  private createMobileButton(text: string): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.innerText = text;
+    Object.assign(btn.style, {
+      width: '60px',
+      height: '60px',
+      fontSize: '24px',
+      borderRadius: '10px',
+      border: 'none',
+      background: 'rgba(0, 0, 0, 0.5)',
+      color: 'white',
+      textAlign: 'center',
+      userSelect: 'none'
+    });
+    return btn;
+  }
+
+  private handleActionLeft() {
+    console.log('Acción: clic izquierdo (móvil)');
+  }
+
+  private handleActionRight() {
+    console.log('Acción: clic derecho (móvil)');
+  }
+
+  // --- Integración del giroscopio ---
+  private enableDeviceOrientation() {
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      // Para iOS 13+ se requiere solicitar permiso
+      DeviceOrientationEvent.requestPermission()
+        .then((response) => {
+          if (response === 'granted') {
+            window.addEventListener('deviceorientation', this.onDeviceOrientation.bind(this), false);
+          }
+        })
+        .catch(console.error);
+    } else {
+      window.addEventListener('deviceorientation', this.onDeviceOrientation.bind(this), false);
+    }
+  }
+
+  private onDeviceOrientation(event: DeviceOrientationEvent) {
+    // Verificar que se tengan los datos
+    if (event.alpha === null || event.beta === null || event.gamma === null) return;
+    
+    // Convertir a radianes
+    const alpha = THREE.MathUtils.degToRad(event.alpha);
+    const beta = THREE.MathUtils.degToRad(event.beta);
+    const gamma = THREE.MathUtils.degToRad(event.gamma);
+    const orient = window.orientation ? THREE.MathUtils.degToRad(window.orientation) : 0;
+    
+    // Adaptación del algoritmo de THREE.DeviceOrientationControls:
+    const zee = new THREE.Vector3(0, 0, 1);
+    const euler = new THREE.Euler();
+    const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -90° alrededor de X
+    euler.set(beta, alpha, -gamma, 'YXZ');
+    const quaternion = new THREE.Quaternion().setFromEuler(euler);
+    quaternion.multiply(q1);
+    const q2 = new THREE.Quaternion().setFromAxisAngle(zee, -orient);
+    quaternion.multiply(q2);
+    
+    // Actualizar la orientación de la cámara
+    this.player.camera.quaternion.copy(quaternion);
+  }
 
   public update() {
-    // Calcular la dirección horizontal (basada en el yaw)
     const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-
-    // Movimiento horizontal
     if (this.moveForward) this.player.position.addScaledVector(forward, -this.speed);
     if (this.moveBackward) this.player.position.addScaledVector(forward, this.speed);
     if (this.moveLeft) this.player.position.addScaledVector(right, this.speed);
     if (this.moveRight) this.player.position.addScaledVector(right, -this.speed);
-
-    // Movimiento vertical (solo en modo vuelo)
     if (this.player.flying) {
-      if (this.moveUp) {
-        this.player.position.y += this.verticalSpeed;
-      }
-      if (this.moveDown) {
-        this.player.position.y -= this.verticalSpeed;
-      }
+      if (this.moveUp) this.player.position.y += this.verticalSpeed;
+      if (this.moveDown) this.player.position.y -= this.verticalSpeed;
     }
   }
 }
