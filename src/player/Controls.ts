@@ -41,13 +41,15 @@ export class Controls {
 
     this.init();
 
-    // if ('DeviceOrientationEvent' in window) {
-    //   this.enableDeviceOrientation();
-    // } 
-
+    if ('DeviceOrientationEvent' in window) {
+      this.enableDeviceOrientation();
+    } else {
+      if ('ontouchstart' in window) {
+        this.addTouchControls();
+      }
+    }
     if ('ontouchstart' in window) {
       this.createMobileUI();
-      this.addTouchControls();
     }
   }
 
