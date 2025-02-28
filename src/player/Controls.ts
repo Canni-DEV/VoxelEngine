@@ -34,7 +34,7 @@ export class Controls {
   private lastTouchX = 0;
   private lastTouchY = 0;
 
-  constructor(player: Player, domElement: HTMLElement, inputManager : InputManager ) {
+  constructor(player: Player, domElement: HTMLElement, inputManager: InputManager) {
     this.player = player;
     this.domElement = domElement;
     this.inputManager = inputManager;
@@ -247,20 +247,35 @@ export class Controls {
     this.inputManager.DeleteVoxel();
   }
 
-  // --- Integración del giroscopio ---
   private enableDeviceOrientation() {
-    if (typeof DeviceOrientationEvent !== 'undefined' &&
-      typeof DeviceOrientationEvent.requestPermission === 'function') {
-      // Para iOS 13+ se requiere solicitar permiso
+    if (
+      typeof DeviceOrientationEvent !== "undefined" &&
+      // @ts-ignore
+      typeof DeviceOrientationEvent.requestPermission === "function"
+    ) {
+      // @ts-ignore
       DeviceOrientationEvent.requestPermission()
+        // @ts-ignore
         .then((response) => {
-          if (response === 'granted') {
-            window.addEventListener('deviceorientation', this.onDeviceOrientation.bind(this), false);
+          if (response === "granted") {
+            // Una vez concedido el permiso, ya puedes agregar el listener
+            window.addEventListener(
+              "deviceorientation",
+              this.onDeviceOrientation.bind(this),
+              false
+            );
+          } else {
+            console.warn("Permiso de orientación denegado.");
           }
         })
         .catch(console.error);
     } else {
-      window.addEventListener('deviceorientation', this.onDeviceOrientation.bind(this), false);
+      // Fallback para navegadores que no requieren requestPermission
+      window.addEventListener(
+        "deviceorientation",
+        this.onDeviceOrientation.bind(this),
+        false
+      );
     }
   }
 
