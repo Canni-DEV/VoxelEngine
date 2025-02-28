@@ -13,8 +13,8 @@ async function init() {
   const chunkManager = new ChunkManager(renderer.scene)
   const world = new World(renderer.scene, chunkManager);
   const player = new Player(renderer.camera, world);
-  const controls = new Controls(player, renderer.domElement);
   const inputManager = new InputManager(renderer.camera, renderer.scene, chunkManager);
+  const controls = new Controls(player, renderer.domElement, inputManager);
   const audioManager = new AudioManager();
   const uiManager = new UIManager();
   // Opcional: inicializa el toolbar y menú

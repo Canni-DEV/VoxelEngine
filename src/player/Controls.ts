@@ -1,26 +1,28 @@
 import * as THREE from 'three';
 import { Player } from './Player';
+import { InputManager } from './InputManager';
 
 export class Controls {
   private player: Player;
   private domElement: HTMLElement;
+  private inputManager: InputManager;
 
   // Movimiento horizontal
   private moveForward = false;
   private moveBackward = false;
   private moveLeft = false;
   private moveRight = false;
-  
+
   // Movimiento vertical (solo en modo vuelo)
   private moveUp = false;
   private moveDown = false;
-  
+
   private pointerLocked = false;
-  
+
   // Ángulos para la vista (en radianes) – se usan en mouse/teclado
   private yaw = 0;
   private pitch = 0;
-  
+
   // Velocidades (ajustables)
   private speed = 0.07;
   private verticalSpeed = 0.02;
@@ -32,19 +34,21 @@ export class Controls {
   private lastTouchX = 0;
   private lastTouchY = 0;
 
-  constructor(player: Player, domElement: HTMLElement) {
+  constructor(player: Player, domElement: HTMLElement, inputManager : InputManager ) {
     this.player = player;
     this.domElement = domElement;
+    this.inputManager = inputManager;
+
     this.init();
 
-    // Si hay soporte para sensores de orientación, se habilita el control por giroscopio
     if ('DeviceOrientationEvent' in window) {
       this.enableDeviceOrientation();
+    } else {
+      if ('ontouchstart' in window) {
+        this.addTouchControls();
+      }
     }
-
-    // Si se detecta dispositivo táctil, también se agregan controles táctiles
     if ('ontouchstart' in window) {
-      this.addTouchControls();
       this.createMobileUI();
     }
   }
@@ -63,7 +67,7 @@ export class Controls {
       case 'KeyS': this.moveBackward = true; break;
       case 'KeyA': this.moveLeft = true; break;
       case 'KeyD': this.moveRight = true; break;
-      
+
       case 'Space':
         if (this.player.flying) {
           this.moveUp = true;
@@ -71,13 +75,13 @@ export class Controls {
           this.player.velocity.y = this.jumpSpeed;
         }
         break;
-      
+
       case 'ShiftLeft':
         if (this.player.flying) {
           this.moveDown = true;
         }
         break;
-      
+
       case 'KeyF':
         this.player.flying = !this.player.flying;
         if (this.player.flying) {
@@ -109,7 +113,7 @@ export class Controls {
 
   private onMouseMove(event: MouseEvent) {
     if (!this.pointerLocked) return;
-  
+
     this.yaw -= event.movementX * this.sensitivity;
     this.pitch -= event.movementY * this.sensitivity;
     this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
@@ -206,12 +210,15 @@ export class Controls {
       gap: '10px',
       zIndex: '1000'
     });
-    const btnActionLeft = this.createMobileButton('L');
+    const btnActionLeft = this.createMobileButton('S');
     btnActionLeft.addEventListener('touchstart', (e) => { this.handleActionLeft(); e.preventDefault(); });
-    const btnActionRight = this.createMobileButton('R');
+    const btnActionRight = this.createMobileButton('D');
     btnActionRight.addEventListener('touchstart', (e) => { this.handleActionRight(); e.preventDefault(); });
+    const btnActionJump = this.createMobileButton('J');
+    btnActionJump.addEventListener('touchstart', (e) => { this.player.velocity.y = this.jumpSpeed; e.preventDefault(); });
     actionContainer.appendChild(btnActionLeft);
     actionContainer.appendChild(btnActionRight);
+    actionContainer.appendChild(btnActionJump);
     document.body.appendChild(actionContainer);
   }
 
@@ -233,17 +240,17 @@ export class Controls {
   }
 
   private handleActionLeft() {
-    console.log('Acción: clic izquierdo (móvil)');
+    this.inputManager.SetVoxel();
   }
 
   private handleActionRight() {
-    console.log('Acción: clic derecho (móvil)');
+    this.inputManager.DeleteVoxel();
   }
 
   // --- Integración del giroscopio ---
   private enableDeviceOrientation() {
     if (typeof DeviceOrientationEvent !== 'undefined' &&
-        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
       // Para iOS 13+ se requiere solicitar permiso
       DeviceOrientationEvent.requestPermission()
         .then((response) => {
@@ -259,12 +266,12 @@ export class Controls {
 
   private onDeviceOrientation(event: DeviceOrientationEvent) {
     if (event.alpha === null || event.beta === null || event.gamma === null) return;
-  
+
     const alpha = THREE.MathUtils.degToRad(event.alpha);
     const beta = THREE.MathUtils.degToRad(event.beta);
     const gamma = THREE.MathUtils.degToRad(event.gamma);
     const orient = window.orientation ? THREE.MathUtils.degToRad(window.orientation) : 0;
-  
+
     // Adaptación del algoritmo de THREE.DeviceOrientationControls:
     const zee = new THREE.Vector3(0, 0, 1);
     const euler = new THREE.Euler();
@@ -274,17 +281,17 @@ export class Controls {
     quaternion.multiply(q1);
     const q2 = new THREE.Quaternion().setFromAxisAngle(zee, -orient);
     quaternion.multiply(q2);
-    
+
     // Actualizar la orientación de la cámara
     this.player.camera.quaternion.copy(quaternion);
-    
+
     // Extraer yaw y pitch desde el quaternion y actualizarlos para que el movimiento del player sea coherente
     const euler2 = new THREE.Euler(0, 0, 0, 'YXZ');
     euler2.setFromQuaternion(quaternion, 'YXZ');
     this.yaw = euler2.y;
     this.pitch = euler2.x;
   }
-  
+
 
   public update() {
     const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
