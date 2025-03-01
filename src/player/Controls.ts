@@ -7,29 +7,27 @@ export class Controls {
   private domElement: HTMLElement;
   private inputManager: InputManager;
 
-  // Movimiento horizontal
   private moveForward = false;
   private moveBackward = false;
   private moveLeft = false;
   private moveRight = false;
 
-  // Movimiento vertical (solo en modo vuelo)
   private moveUp = false;
   private moveDown = false;
 
   private pointerLocked = false;
 
-  // Ángulos para la vista (en radianes) – se usan en mouse/teclado
   private yaw = 0;
   private pitch = 0;
+  private targetYaw: number = 0;
+  private targetPitch: number = 0;
+  private smoothing: number = 0.95; // Valor de interpolación (entre 0 y 1)
 
-  // Velocidades (ajustables)
   private speed = 5;
   private verticalSpeed = 5;
   private readonly jumpSpeed = 0.2;
   private readonly sensitivity = 0.002;
 
-  // Variables para controles táctiles (ya existentes)
   private isTouching = false;
   private lastTouchX = 0;
   private lastTouchY = 0;
@@ -85,11 +83,11 @@ export class Controls {
       case 'KeyF':
         this.player.flying = !this.player.flying;
         if (this.player.flying) {
-          this.speed *= 3;
-          this.verticalSpeed *= 3;
+          this.speed *= 5;
+          this.verticalSpeed *= 5;
         } else {
-          this.speed /= 3;
-          this.verticalSpeed /= 3;
+          this.speed /= 5;
+          this.verticalSpeed /= 5;
         }
         this.player.velocity.y = 0;
         break;
@@ -113,17 +111,11 @@ export class Controls {
 
   private onMouseMove(event: MouseEvent) {
     if (!this.pointerLocked) return;
-
-    this.yaw -= event.movementX * this.sensitivity;
-    this.pitch -= event.movementY * this.sensitivity;
-    this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
-    this.player.camera.rotation.order = 'YXZ';
-    this.player.camera.rotation.x = this.pitch;
-    this.player.camera.rotation.y = this.yaw;
-    this.player.camera.rotation.z = 0;
+    this.targetYaw -= event.movementX * this.sensitivity;
+    this.targetPitch -= event.movementY * this.sensitivity;
+    this.targetPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.targetPitch));
   }
 
-  // --- Controles táctiles (ya existentes) ---
   private addTouchControls() {
     this.domElement.addEventListener('touchstart', (e) => this.onTouchStart(e), false);
     this.domElement.addEventListener('touchmove', (e) => this.onTouchMove(e), false);
@@ -160,7 +152,6 @@ export class Controls {
   }
 
   private createMobileUI() {
-    // Controles direccionales en la esquina inferior izquierda
     const dirContainer = document.createElement('div');
     dirContainer.id = 'mobile-dir-controls';
     Object.assign(dirContainer.style, {
@@ -198,7 +189,6 @@ export class Controls {
     dirContainer.appendChild(empty.cloneNode());
     document.body.appendChild(dirContainer);
 
-    // Botones de acción en la esquina inferior derecha
     const actionContainer = document.createElement('div');
     actionContainer.id = 'mobile-action-controls';
     Object.assign(actionContainer.style, {
@@ -306,6 +296,11 @@ export class Controls {
   public update(delta:number) {
     const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    this.yaw += (this.targetYaw - this.yaw) * this.smoothing;
+    this.pitch += (this.targetPitch - this.pitch) * this.smoothing;
+    this.player.camera.rotation.order = 'YXZ';
+    this.player.camera.rotation.x = this.pitch;
+    this.player.camera.rotation.y = this.yaw;
     if (this.moveForward) this.player.position.addScaledVector(forward, -this.speed * delta);
     if (this.moveBackward) this.player.position.addScaledVector(forward, this.speed * delta);
     if (this.moveLeft) this.player.position.addScaledVector(right, this.speed * delta);
