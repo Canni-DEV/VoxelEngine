@@ -90,7 +90,7 @@ export class Renderer {
     this.ssaoPass = new SSAOPass(this.scene, this.camera, window.innerWidth, window.innerHeight);
     this.ssaoPass.kernelRadius = 16;
     // Opcionalmente se puede agregar el SSAO pass
-    this.composer.addPass(this.ssaoPass);
+    //this.composer.addPass(this.ssaoPass);
 
     this.fxaaPass = new ShaderPass(FXAAShader);
     this.fxaaPass.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
