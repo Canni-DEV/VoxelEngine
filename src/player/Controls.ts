@@ -19,9 +19,6 @@ export class Controls {
 
   private yaw = 0;
   private pitch = 0;
-  private targetYaw: number = 0;
-  private targetPitch: number = 0;
-  private smoothing: number = 0.95; // Valor de interpolación (entre 0 y 1)
 
   private speed = 5;
   private verticalSpeed = 5;
@@ -111,9 +108,13 @@ export class Controls {
 
   private onMouseMove(event: MouseEvent) {
     if (!this.pointerLocked) return;
-    this.targetYaw -= event.movementX * this.sensitivity;
-    this.targetPitch -= event.movementY * this.sensitivity;
-    this.targetPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.targetPitch));
+    this.yaw -= event.movementX * this.sensitivity;
+    this.pitch -= event.movementY * this.sensitivity;
+    this.pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch));
+    this.player.camera.rotation.order = 'YXZ';
+    this.player.camera.rotation.x = this.pitch;
+    this.player.camera.rotation.y = this.yaw;
+    this.player.camera.rotation.z = 0;
   }
 
   private addTouchControls() {
@@ -293,14 +294,9 @@ export class Controls {
     this.pitch = euler2.x;
   }
 
-  public update(delta:number) {
+  public update(delta: number) {
     const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-    this.yaw += (this.targetYaw - this.yaw) * this.smoothing;
-    this.pitch += (this.targetPitch - this.pitch) * this.smoothing;
-    this.player.camera.rotation.order = 'YXZ';
-    this.player.camera.rotation.x = this.pitch;
-    this.player.camera.rotation.y = this.yaw;
     if (this.moveForward) this.player.position.addScaledVector(forward, -this.speed * delta);
     if (this.moveBackward) this.player.position.addScaledVector(forward, this.speed * delta);
     if (this.moveLeft) this.player.position.addScaledVector(right, this.speed * delta);
