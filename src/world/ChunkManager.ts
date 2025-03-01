@@ -7,8 +7,8 @@ export class ChunkManager {
   private chunks: Map<string, Chunk>;
   private modifiedChunks: Map<string, Chunk>;
   public chunkSize: number = 16;
-  private renderDistance: number = 8; // Número de chunks en cada dirección
-  private renderDistanceDelete: number = 12; // Número de chunks en cada dirección
+  private renderDistance: number = 10;
+  private renderDistanceDelete: number = 12;
   private terrainGenerator: TerrainGenerator;
 
   constructor(scene: THREE.Scene) {
