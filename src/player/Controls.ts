@@ -24,8 +24,8 @@ export class Controls {
   private pitch = 0;
 
   // Velocidades (ajustables)
-  private speed = 0.07;
-  private verticalSpeed = 0.02;
+  private speed = 5;
+  private verticalSpeed = 5;
   private readonly jumpSpeed = 0.2;
   private readonly sensitivity = 0.002;
 
@@ -85,11 +85,11 @@ export class Controls {
       case 'KeyF':
         this.player.flying = !this.player.flying;
         if (this.player.flying) {
-          this.speed = 1;
-          this.verticalSpeed = 1;
+          this.speed *= 3;
+          this.verticalSpeed *= 3;
         } else {
-          this.speed = 0.06;
-          this.verticalSpeed = 0.06;
+          this.speed /= 3;
+          this.verticalSpeed /= 3;
         }
         this.player.velocity.y = 0;
         break;
@@ -303,16 +303,16 @@ export class Controls {
     this.pitch = euler2.x;
   }
 
-  public update() {
+  public update(delta:number) {
     const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
     const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-    if (this.moveForward) this.player.position.addScaledVector(forward, -this.speed);
-    if (this.moveBackward) this.player.position.addScaledVector(forward, this.speed);
-    if (this.moveLeft) this.player.position.addScaledVector(right, this.speed);
-    if (this.moveRight) this.player.position.addScaledVector(right, -this.speed);
+    if (this.moveForward) this.player.position.addScaledVector(forward, -this.speed * delta);
+    if (this.moveBackward) this.player.position.addScaledVector(forward, this.speed * delta);
+    if (this.moveLeft) this.player.position.addScaledVector(right, this.speed * delta);
+    if (this.moveRight) this.player.position.addScaledVector(right, -this.speed * delta);
     if (this.player.flying) {
-      if (this.moveUp) this.player.position.y += this.verticalSpeed;
-      if (this.moveDown) this.player.position.y -= this.verticalSpeed;
+      if (this.moveUp) this.player.position.y += this.verticalSpeed * delta;
+      if (this.moveDown) this.player.position.y -= this.verticalSpeed * delta;
     }
   }
 }

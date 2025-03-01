@@ -16,7 +16,6 @@ export class InputManager {
     this.chunkManager = chunkManager;
     this.raycaster = new THREE.Raycaster();
 
-    // Crear el indicador visual: un plano semitransparente amarillo.
     const indicatorGeometry = new THREE.PlaneGeometry(0.1, 0.1);
     const indicatorMaterial = new THREE.MeshBasicMaterial({
       color: 0xffff00,
@@ -69,7 +68,6 @@ export class InputManager {
     const voxelY = Math.floor(adjustedPoint.y);
     const voxelZ = Math.floor(adjustedPoint.z);
 
-    // Determinar las coordenadas globales del chunk objetivo.
     const targetChunkX = Math.floor(voxelX / this.chunkManager.chunkSize);
     const targetChunkZ = Math.floor(voxelZ / this.chunkManager.chunkSize);
     const targetChunk = this.chunkManager.getChunkAt(targetChunkX, targetChunkZ);

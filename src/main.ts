@@ -24,7 +24,7 @@ async function init() {
     lastTime = currentTime;
     
     requestAnimationFrame(animate);
-    controls.update();
+    controls.update(delta);
     player.update();
     world.update(player.position);
     renderer.render();

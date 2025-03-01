@@ -5,7 +5,7 @@ export class Player {
   public position: THREE.Vector3;
   public velocity: THREE.Vector3;
   public camera: THREE.PerspectiveCamera;
-  public flying: boolean = false; // Modo vuelo (sin gravedad)
+  public flying: boolean = false;
   private world: World;
   private readonly gravity: number = 0.006;
 
@@ -19,14 +19,14 @@ export class Player {
 
 
   constructor(camera: THREE.PerspectiveCamera, world: World) {
-
-    const flashlight = new THREE.SpotLight(0xffffff, 1, 20, Math.PI / 5, 0.9, 2);
-    flashlight.position.set(0, 0, 0);
-    const targetObject = new THREE.Object3D();
-    targetObject.position.set(0, 0, -1);
-    camera.add(targetObject);
-    flashlight.target = targetObject;
-    camera.add(flashlight);
+    //TODO: linterna noche
+    // const flashlight = new THREE.SpotLight(0xffffff, 1, 20, Math.PI / 5, 0.5, 2);
+    // flashlight.position.set(0, 0, 0);
+    // const targetObject = new THREE.Object3D();
+    // targetObject.position.set(0, 0, -1);
+    // camera.add(targetObject);
+    // flashlight.target = targetObject;
+    // camera.add(flashlight);
 
     this.camera = camera;
     this.world = world;
@@ -38,22 +38,17 @@ export class Player {
 
   public update() {
     if (!this.flying) {
-      // Aplicar gravedad en modo normal.
       this.velocity.y -= this.gravity;
     } else {
-      // En modo vuelo, se ignora la gravedad.
       this.velocity.y = 0;
     }
 
-    // Actualizar la posición según la velocidad.
     this.position.add(this.velocity);
 
-    // Resolver colisiones con bloques sólidos (solo si no se está volando).
     if (!this.flying) {
       this.resolveCollisions();
     }
 
-    // Actualiza la posición de la cámara (se eleva un poco para simular la altura de la vista).
     this.camera.position.copy(new THREE.Vector3(
       this.position.x,
       this.position.y + 1.5,
