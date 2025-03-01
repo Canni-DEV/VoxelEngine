@@ -18,39 +18,33 @@ export class Renderer {
 
   constructor() {
     this.scene = new THREE.Scene();
-    // Agregamos niebla para ocultar la carga de chunks lejanos
-    //this.scene.fog = new THREE.Fog(0xa0a0a0, 75, 400);
-
-    // Configuración de la cámara
     this.camera = new THREE.PerspectiveCamera(
       75,
       window.innerWidth / window.innerHeight,
       0.1,
       2000
     );
-    this.camera.position.set(0, 50, 100);
-
-    // Inicializar renderer con antialiasing y sombras
+    this.scene.add(this.camera);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.shadowMap.enabled = true;
+    //this.renderer.shadowMap.enabled = true;
     document.body.appendChild(this.renderer.domElement);
     this.domElement = this.renderer.domElement;
 
     // Iluminación
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
     this.scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
-    directionalLight.position.set(0, 500, 50);
-    directionalLight.castShadow = true;
-    this.scene.add(directionalLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    directionalLight.position.set(0, 500, 300);
+    //directionalLight.castShadow = true;
+    //this.scene.add(directionalLight);
 
     //Set up shadow properties for the light
-    directionalLight.shadow.mapSize.width = 1024; // default
-    directionalLight.shadow.mapSize.height = 1024; // default
-    directionalLight.shadow.camera.near = 0.1; // default
-    directionalLight.shadow.camera.far = 500; // default
+    // directionalLight.shadow.mapSize.width = 1024; // default
+    // directionalLight.shadow.mapSize.height = 1024; // default
+    // directionalLight.shadow.camera.near = 0.1; // default
+    // directionalLight.shadow.camera.far = 2000; // default
 
     // Configurar composer para postprocesado
     this.composer = new EffectComposer(this.renderer);
@@ -72,12 +66,12 @@ export class Renderer {
     this.outlinePass.visibleEdgeColor.set('#ffffff');
     this.outlinePass.hiddenEdgeColor.set('#190a05');
     // Si deseas resaltar objetos específicos, puedes asignarlos a outlinePass.selectedObjects.
-    //this.composer.addPass(this.outlinePass);
+    this.composer.addPass(this.outlinePass);
 
     // FXAA para anti-aliasing
     this.fxaaPass = new ShaderPass(FXAAShader);
     this.fxaaPass.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
-    //this.composer.addPass(this.fxaaPass);
+    this.composer.addPass(this.fxaaPass);
 
     window.addEventListener('resize', this.onWindowResize.bind(this), false);
   }

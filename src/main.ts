@@ -9,7 +9,6 @@ import { ChunkManager } from './world/ChunkManager';
 
 async function init() {
   const renderer = new Renderer();
-
   const chunkManager = new ChunkManager(renderer.scene)
   const world = new World(renderer.scene, chunkManager);
   const player = new Player(renderer.camera, world);
@@ -17,14 +16,11 @@ async function init() {
   const controls = new Controls(player, renderer.domElement, inputManager);
   const audioManager = new AudioManager();
   const uiManager = new UIManager();
-  // Opcional: inicializa el toolbar y menú
-  // new Toolbar();
-  // new Menu();
   let lastTime = performance.now();
 
   function animate() {
     const currentTime = performance.now();
-    const delta = (currentTime - lastTime) / 1000; // delta en segundos
+    const delta = (currentTime - lastTime) / 1000; 
     lastTime = currentTime;
     
     requestAnimationFrame(animate);
@@ -32,7 +28,7 @@ async function init() {
     player.update();
     world.update(player.position);
     renderer.render();
-    uiManager.update(); // Actualiza el contador de FPS, etc.
+    uiManager.update();
   }
   animate();
 }

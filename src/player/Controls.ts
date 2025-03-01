@@ -270,7 +270,6 @@ export class Controls {
         })
         .catch(console.error);
     } else {
-      // Fallback para navegadores que no requieren requestPermission
       window.addEventListener(
         "deviceorientation",
         this.onDeviceOrientation.bind(this),
@@ -287,26 +286,22 @@ export class Controls {
     const gamma = THREE.MathUtils.degToRad(event.gamma);
     const orient = window.orientation ? THREE.MathUtils.degToRad(window.orientation) : 0;
 
-    // Adaptación del algoritmo de THREE.DeviceOrientationControls:
     const zee = new THREE.Vector3(0, 0, 1);
     const euler = new THREE.Euler();
-    const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // -90° alrededor de X
+    const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
     euler.set(beta, alpha, -gamma, 'YXZ');
     const quaternion = new THREE.Quaternion().setFromEuler(euler);
     quaternion.multiply(q1);
     const q2 = new THREE.Quaternion().setFromAxisAngle(zee, -orient);
     quaternion.multiply(q2);
 
-    // Actualizar la orientación de la cámara
     this.player.camera.quaternion.copy(quaternion);
 
-    // Extraer yaw y pitch desde el quaternion y actualizarlos para que el movimiento del player sea coherente
     const euler2 = new THREE.Euler(0, 0, 0, 'YXZ');
     euler2.setFromQuaternion(quaternion, 'YXZ');
     this.yaw = euler2.y;
     this.pitch = euler2.x;
   }
-
 
   public update() {
     const forward = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));

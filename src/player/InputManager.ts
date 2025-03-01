@@ -75,10 +75,6 @@ export class InputManager {
     const targetChunk = this.chunkManager.getChunkAt(targetChunkX, targetChunkZ);
     if (!targetChunk) return;
 
-    // Convertir a coordenadas locales dentro del chunk.
-    const localX = voxelX - targetChunk.x * targetChunk.size;
-    const localZ = voxelZ - targetChunk.z * targetChunk.size;
-
     const faceNormal = intersection.face?.normal.clone();
     if (!faceNormal) return;
     const offsetX = Math.round(faceNormal.x);

@@ -83,10 +83,13 @@ export class Chunk {
    * Crea la malla del chunk aplicando greedy meshing.
    *
    * Se recorre cada eje (d = 0: X, d = 1: Y, d = 2: Z). Para cada slice se construye una máscara 2D
-   * comparando el voxel actual (voxelA) y su vecino en la dirección opuesta (voxelB). Se marca la celda
-   * cuando una cara está expuesta, se fusionan áreas contiguas y se generan los buffers de vértices, índices,
-   * normales, colores y UV. Ahora los UV se calculan en función del tamaño del quad (w, h) y se ajusta su
-   * orden para ciertas caras laterales.
+   * comparando el voxel actual (voxelA) y su vecino en la dirección opuesta (voxelB).
+   * Se marca la celda cuando una cara está expuesta, se fusionan áreas contiguas y se generan
+   * los buffers de vértices, índices, normales, colores y UV. Los UV se calculan en función del tamaño
+   * del quad y se ajusta su orden para ciertas caras laterales.
+   *
+   * **Corrección en eje Y:** Para la capa inferior (y==0) se fuerza que la cara se genere como front face,
+   * para que la normal quede apuntando hacia arriba y se ilumine.
    */
   private createMesh(): THREE.Mesh {
     const positions: number[] = [];
@@ -135,7 +138,12 @@ export class Chunk {
 
             let maskValue: null | { voxel: VoxelType; backface: boolean } = null;
             if (voxelA !== VoxelType.AIR && voxelB === VoxelType.AIR) {
-              maskValue = { voxel: voxelA, backface: true };
+              if (d === 1 && x[1] === 0) {
+                // Para la capa inferior en Y, forzamos front face para que la normal sea [0, 1, 0].
+                maskValue = { voxel: voxelA, backface: false };
+              } else {
+                maskValue = { voxel: voxelA, backface: true };
+              }
             } else if (voxelA === VoxelType.AIR && voxelB !== VoxelType.AIR) {
               maskValue = { voxel: voxelB, backface: false };
             }
@@ -179,27 +187,23 @@ export class Chunk {
 
               const vertices = new Array(4).fill(null).map(() => [0, 0, 0]);
               if (!cell.backface) {
-                // Cara en la dirección positiva (normal = q)
                 vertices[0] = [pos[0], pos[1], pos[2]];
                 vertices[1] = [pos[0] + du[0], pos[1] + du[1], pos[2] + du[2]];
                 vertices[2] = [pos[0] + du[0] + dv[0], pos[1] + du[1] + dv[1], pos[2] + du[2] + dv[2]];
                 vertices[3] = [pos[0] + dv[0], pos[1] + dv[1], pos[2] + dv[2]];
               } else {
-                // Cara en la dirección negativa (normal = -q)
                 vertices[0] = [pos[0], pos[1], pos[2]];
                 vertices[1] = [pos[0] + dv[0], pos[1] + dv[1], pos[2] + dv[2]];
                 vertices[2] = [pos[0] + du[0] + dv[0], pos[1] + du[1] + dv[1], pos[2] + du[2] + dv[2]];
                 vertices[3] = [pos[0] + du[0], pos[1] + du[1], pos[2] + du[2]];
               }
 
-              // Sumar el offset global del chunk
               for (let n = 0; n < 4; n++) {
                 vertices[n][0] += worldOffset.x;
                 vertices[n][1] += worldOffset.y;
                 vertices[n][2] += worldOffset.z;
               }
 
-              // Calcular la normal (se invierte si es backface)
               const normal = [q[0], q[1], q[2]];
               if (cell.backface) {
                 normal[0] = -normal[0];
@@ -267,34 +271,65 @@ export class Chunk {
       vertexColors: true,
       map: Chunk.proceduralTexture,
       side: THREE.FrontSide,
-      flatShading: true,
       transparent: true
     });
 
+    // Refactorización del shader para el agua:
     material.onBeforeCompile = (shader) => {
+      // Declarar uniform para el tiempo
       shader.uniforms.uTime = { value: 0.0 };
-      shader.fragmentShader = `uniform float uTime;
-varying float vIsWater;
-` + shader.fragmentShader;
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <dithering_fragment>',
-        `#include <dithering_fragment>
-if (vIsWater > 0.5) {
-  float wave = 0.1 * sin(uTime * 50.0 + vUv.y * 10.0);
-  gl_FragColor.a = 0.5 + wave;
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.0, 0.5, 1.0), 0.5);
-}
-`
+
+      // Declarar atributo y varying para identificar voxeles de agua
+      shader.vertexShader = `
+        uniform float uTime;
+        attribute float isWater;
+        varying float vIsWater;
+      ` + shader.vertexShader;
+
+      // Recalcular UV para agua basado en coordenadas de mundo (para transiciones consistentes)
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <uv_vertex>',
+        `#include <uv_vertex>
+         if(isWater > 0.5) {
+           vec4 worldPos = modelMatrix * vec4( position, 1.0 );
+           vUv = worldPos.xz * 0.1;
+         }`
       );
-      shader.vertexShader = `attribute float isWater;
-varying float vIsWater;
-` + shader.vertexShader;
+
+      // Inyectar deformación de vértices para simular olas (solo para agua)
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+         if(isWater > 0.5) {
+           vec4 worldPos = modelMatrix * vec4( position, 1.0 );
+           // Desplaza la altura en función de la posición en x y el tiempo
+           transformed.y += sin(worldPos.x * 0.1 + uTime * 3.0) * 0.1;
+         }`
+      );
+
+      // Pasar el atributo isWater al fragment shader
       shader.vertexShader = shader.vertexShader.replace(
         '#include <color_vertex>',
         `#include <color_vertex>
-vIsWater = isWater;
-`
+         vIsWater = isWater;
+         `
       );
+
+      // En el fragment shader se puede ajustar el color dinámicamente (opcional)
+      shader.fragmentShader = `
+        uniform float uTime;
+        varying float vIsWater;
+      ` + shader.fragmentShader;
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <dithering_fragment>',
+        `#include <dithering_fragment>
+         if(vIsWater > 0.5){
+           // Mezcla sutilmente el color para dar sensación de movimiento
+           gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.0, 0.5, 1.0), 0.1);
+         }`
+      );
+
       (material as any).userData.shader = shader;
     };
 

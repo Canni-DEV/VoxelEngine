@@ -19,6 +19,12 @@ export class ChunkManager {
   }
 
   update(playerPosition: THREE.Vector3) {
+    this.chunks.forEach(chunk => {
+      if ( (chunk.mesh.material as any).userData.shader ) {
+        (chunk.mesh.material as any).userData.shader.uniforms.uTime.value = performance.now() / 1000;
+      }
+    });
+   
     const currentChunkX = Math.floor(playerPosition.x / this.chunkSize);
     const currentChunkZ = Math.floor(playerPosition.z / this.chunkSize);
 

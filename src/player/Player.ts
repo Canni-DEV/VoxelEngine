@@ -19,13 +19,22 @@ export class Player {
 
 
   constructor(camera: THREE.PerspectiveCamera, world: World) {
+
+    const flashlight = new THREE.SpotLight(0xffffff, 1, 20, Math.PI / 5, 0.9, 2);
+    flashlight.position.set(0, 0, 0);
+    const targetObject = new THREE.Object3D();
+    targetObject.position.set(0, 0, -1);
+    camera.add(targetObject);
+    flashlight.target = targetObject;
+    camera.add(flashlight);
+
     this.camera = camera;
     this.world = world;
-    // Posición inicial (los pies del jugador).
     this.position = new THREE.Vector3(0, 100, 0);
     this.velocity = new THREE.Vector3(0, 0, 0);
     this.camera.position.copy(this.position);
   }
+
 
   public update() {
     if (!this.flying) {
@@ -35,7 +44,7 @@ export class Player {
       // En modo vuelo, se ignora la gravedad.
       this.velocity.y = 0;
     }
-    
+
     // Actualizar la posición según la velocidad.
     this.position.add(this.velocity);
 
@@ -43,7 +52,7 @@ export class Player {
     if (!this.flying) {
       this.resolveCollisions();
     }
-    
+
     // Actualiza la posición de la cámara (se eleva un poco para simular la altura de la vista).
     this.camera.position.copy(new THREE.Vector3(
       this.position.x,
@@ -70,10 +79,10 @@ export class Player {
 
   // Función auxiliar para detectar la intersección entre dos AABB.
   private aabbIntersect(a: { min: THREE.Vector3, max: THREE.Vector3 },
-                        b: { min: THREE.Vector3, max: THREE.Vector3 }): boolean {
+    b: { min: THREE.Vector3, max: THREE.Vector3 }): boolean {
     return (a.min.x < b.max.x && a.max.x > b.min.x) &&
-           (a.min.y < b.max.y && a.max.y > b.min.y) &&
-           (a.min.z < b.max.z && a.max.z > b.min.z);
+      (a.min.y < b.max.y && a.max.y > b.min.y) &&
+      (a.min.z < b.max.z && a.max.z > b.min.z);
   }
 
   // Resolver colisiones con bloques sólidos de los chunks cercanos.
