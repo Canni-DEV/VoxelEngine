@@ -20,13 +20,13 @@ export class Player {
 
   constructor(camera: THREE.PerspectiveCamera, world: World) {
     //TODO: linterna noche
-    // const flashlight = new THREE.SpotLight(0xffffff, 1, 20, Math.PI / 5, 0.5, 2);
-    // flashlight.position.set(0, 0, 0);
-    // const targetObject = new THREE.Object3D();
-    // targetObject.position.set(0, 0, -1);
-    // camera.add(targetObject);
-    // flashlight.target = targetObject;
-    // camera.add(flashlight);
+    const flashlight = new THREE.SpotLight(0xffffff, 1, 20, Math.PI / 5, 0.5, 2);
+    flashlight.position.set(0, 0, 0);
+    const targetObject = new THREE.Object3D();
+    targetObject.position.set(0, 0, -1);
+    camera.add(targetObject);
+    flashlight.target = targetObject;
+    camera.add(flashlight);
 
     this.camera = camera;
     this.world = world;
