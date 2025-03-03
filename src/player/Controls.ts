@@ -22,7 +22,7 @@ export class Controls {
 
   private speed = 5;
   private verticalSpeed = 5;
-  private readonly jumpSpeed = 0.2;
+  private readonly jumpSpeed = 0.14;
   private readonly sensitivity = 0.002;
 
   private isTouching = false;
@@ -80,11 +80,11 @@ export class Controls {
       case 'KeyF':
         this.player.flying = !this.player.flying;
         if (this.player.flying) {
-          this.speed *= 5;
-          this.verticalSpeed *= 5;
+          this.speed = 25;
+          this.verticalSpeed = 25;
         } else {
-          this.speed /= 5;
-          this.verticalSpeed /= 5;
+          this.speed = 5;
+          this.verticalSpeed = 5;
         }
         this.player.velocity.y = 0;
         break;

@@ -17,17 +17,22 @@ async function init() {
   const audioManager = new AudioManager();
   const uiManager = new UIManager();
   let lastTime = performance.now();
+  let lastRenderTime = 0;
 
   function animate() {
     const currentTime = performance.now();
-    const delta = (currentTime - lastTime) / 1000; 
+    const delta = (currentTime - lastTime) / 1000;
     lastTime = currentTime;
-    
+
     requestAnimationFrame(animate);
     controls.update(delta);
-    player.update();
+    player.update(delta);
     world.update(player.position);
-    renderer.render();
+
+    if (currentTime - lastRenderTime >= 1000 / 60) {
+      renderer.render(delta);
+      lastRenderTime = currentTime;
+    }
     uiManager.update();
   }
   animate();

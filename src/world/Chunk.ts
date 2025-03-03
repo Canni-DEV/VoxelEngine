@@ -15,7 +15,7 @@ export class Chunk {
   private static readonly WATER_COLOR = new THREE.Color(0x3399ff);
   private static readonly SAND_COLOR = new THREE.Color(0xC2B280);
   private static readonly GRASS_COLOR = new THREE.Color(0x00cc00);
-  private static readonly DIRT_COLOR = new THREE.Color(0x8B4513);
+  private static readonly DIRT_COLOR = new THREE.Color(0x855E42);
   private static readonly MOUNTAIN_COLOR = new THREE.Color(0x888888);
   private static readonly SNOW_COLOR = new THREE.Color(0xffffff);
   private static readonly TRUNK_COLOR = new THREE.Color(0x513C29);

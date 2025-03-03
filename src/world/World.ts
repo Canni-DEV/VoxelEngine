@@ -11,12 +11,15 @@ export class World {
     this.chunkManager = chunkManager;
   }
 
-  // Se actualiza el mundo en función de la posición del jugador
   update(playerPosition: THREE.Vector3) {
     this.chunkManager.update(playerPosition);
   }
 
   public getLoadedChunks(): Chunk[] {
     return this.chunkManager.getLoadedChunks();
+  }
+
+  public WorldLoaded():boolean{
+    return this.chunkManager.worldLoaded();
   }
 }
