@@ -25,38 +25,42 @@
     }
 
     #crosshair {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 20px;
-      height: 20px;
-      margin-left: -10px;
-      margin-top: -10px;
-      pointer-events: none;
-    }
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  margin-top: -9px;
+  pointer-events: none;
+  z-index: 1000;
+}
 
-    #crosshair::before,
-    #crosshair::after {
-      content: "";
-      position: absolute;
-      background: black;
-    }
+#crosshair::before,
+#crosshair::after {
+  content: "";
+  position: absolute;
+  background: white;
+  /* Agregamos un borde y sombra para mayor contraste */
+  border: 1px solid black;
+}
 
-    #crosshair::before {
-      width: 2px;
-      height: 20px;
-      left: 50%;
-      top: 0;
-      margin-left: -1px;
-    }
+#crosshair::before {
+  width: 2px;
+  height: 18px;
+  left: 50%;
+  top: 0;
+  margin-left: -1px;
+}
 
-    #crosshair::after {
-      width: 20px;
-      height: 2px;
-      left: 0;
-      top: 50%;
-      margin-top: -1px;
-    }
+#crosshair::after {
+  width: 18px;
+  height: 2px;
+  left: 0;
+  top: 50%;
+  margin-top: -1px;
+}
+
   </style>
 </head>
 
