@@ -143,14 +143,14 @@ export class InputManager {
     }
   }
 
-  // Evitar insertar en la posición del jugador
-  // Se asume que la posición del jugador es la de la cámara menos 1.5 en Y (para bajar al nivel del cuerpo)
   private checkPlayerPosition(addGlobalX: number, addGlobalY: number, addGlobalZ: number) {
     const playerVoxelX = Math.floor(this.camera.position.x);
     const playerVoxelY = Math.floor(this.camera.position.y - 1.5);
     const playerVoxelZ = Math.floor(this.camera.position.z);
-    return addGlobalX === playerVoxelX &&
+    return (addGlobalX === playerVoxelX &&
       addGlobalY === playerVoxelY &&
-      addGlobalZ === playerVoxelZ;
+      addGlobalZ === playerVoxelZ) || (addGlobalX === playerVoxelX &&
+        addGlobalY === playerVoxelY + 1 &&
+        addGlobalZ === playerVoxelZ);
   }
 }

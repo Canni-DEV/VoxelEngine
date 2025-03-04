@@ -103,10 +103,12 @@ export class Chunk {
     const worldOffset = new THREE.Vector3(this.x * this.size, 0, this.z * this.size);
     let vertexOffset = 0;
 
-    // Iterar sobre cada eje: 0 (X), 1 (Y), 2 (Z)
+    // Iterar sobre cada eje (0: X, 1: Y, 2: Z)
     for (let d = 0; d < 3; d++) {
       const u = (d + 1) % 3;
       const v = (d + 2) % 3;
+      const dimU = dims[u];
+      const dimV = dims[v];
 
       const x = [0, 0, 0];
       const q = [0, 0, 0];
@@ -114,21 +116,18 @@ export class Chunk {
 
       for (x[d] = 0; x[d] <= dims[d]; x[d]++) {
         // Crear máscara 2D para la slice actual
-        const mask: (null | { voxel: VoxelType; backface: boolean })[] = new Array(dims[u] * dims[v]).fill(null);
+        const mask: (null | { voxel: VoxelType; backface: boolean })[] =
+          new Array(dimU * dimV).fill(null);
 
-        for (let j = 0; j < dims[v]; j++) {
-          for (let i = 0; i < dims[u]; i++) {
+        for (let j = 0; j < dimV; j++) {
+          for (let i = 0; i < dimU; i++) {
             x[u] = i;
             x[v] = j;
 
-            let voxelA: VoxelType;
+            const voxelA = (x[d] < dims[d])
+              ? this.getVoxel(x[0], x[1], x[2])
+              : VoxelType.AIR;
             let voxelB: VoxelType;
-
-            if (x[d] < dims[d]) {
-              voxelA = this.getVoxel(x[0], x[1], x[2]);
-            } else {
-              voxelA = VoxelType.AIR;
-            }
             if (x[d] > 0) {
               const pos = [x[0] - q[0], x[1] - q[1], x[2] - q[2]];
               voxelB = this.getVoxel(pos[0], pos[1], pos[2]);
@@ -138,38 +137,34 @@ export class Chunk {
 
             let maskValue: null | { voxel: VoxelType; backface: boolean } = null;
             if (voxelA !== VoxelType.AIR && voxelB === VoxelType.AIR) {
-              if (d === 1 && x[1] === 0) {
-                // Para la capa inferior en Y, forzamos front face para que la normal sea [0, 1, 0].
-                maskValue = { voxel: voxelA, backface: false };
-              } else {
-                maskValue = { voxel: voxelA, backface: true };
-              }
+              // En eje Y: para la capa inferior forzamos front face
+              maskValue = (d === 1 && x[1] === 0)
+                ? { voxel: voxelA, backface: false }
+                : { voxel: voxelA, backface: true };
             } else if (voxelA === VoxelType.AIR && voxelB !== VoxelType.AIR) {
               maskValue = { voxel: voxelB, backface: false };
             }
-            mask[i + j * dims[u]] = maskValue;
+            mask[i + j * dimU] = maskValue;
           }
         }
 
-        // Aplicar greedy meshing sobre la máscara 2D
-        for (let j = 0; j < dims[v]; j++) {
-          for (let i = 0; i < dims[u]; ) {
-            const idx = i + j * dims[u];
+        // Greedy meshing sobre la máscara 2D
+        for (let j = 0; j < dimV; j++) {
+          for (let i = 0; i < dimU;) {
+            const idx = i + j * dimU;
             const cell = mask[idx];
             if (cell) {
               let w = 1;
               while (
-                i + w < dims[u] &&
+                i + w < dimU &&
                 mask[idx + w] &&
                 mask[idx + w]!.voxel === cell.voxel &&
                 mask[idx + w]!.backface === cell.backface
-              ) {
-                w++;
-              }
+              ) { w++; }
               let h = 1;
-              outer: for (; j + h < dims[v]; h++) {
+              outer: for (; j + h < dimV; h++) {
                 for (let k = 0; k < w; k++) {
-                  const nextCell = mask[i + k + (j + h) * dims[u]];
+                  const nextCell = mask[i + k + (j + h) * dimU];
                   if (!nextCell || nextCell.voxel !== cell.voxel || nextCell.backface !== cell.backface) {
                     break outer;
                   }
@@ -185,7 +180,8 @@ export class Chunk {
               du[u] = w;
               dv[v] = h;
 
-              const vertices = new Array(4).fill(null).map(() => [0, 0, 0]);
+              // Generar los 4 vértices del quad
+              const vertices: [number, number, number][] = new Array(4);
               if (!cell.backface) {
                 vertices[0] = [pos[0], pos[1], pos[2]];
                 vertices[1] = [pos[0] + du[0], pos[1] + du[1], pos[2] + du[2]];
@@ -198,6 +194,7 @@ export class Chunk {
                 vertices[3] = [pos[0] + du[0], pos[1] + du[1], pos[2] + du[2]];
               }
 
+              // Aplicar offset global
               for (let n = 0; n < 4; n++) {
                 vertices[n][0] += worldOffset.x;
                 vertices[n][1] += worldOffset.y;
@@ -214,30 +211,36 @@ export class Chunk {
               const voxelColor = Chunk.VOXEL_COLORS[cell.voxel] || new THREE.Color(0x000000);
               const isWater = cell.voxel === VoxelType.WATER ? 1.0 : 0.0;
 
-              // Calcular UV escalados según el tamaño del quad.
-              // Para caras laterales (d ≠ 1) y backface, invertimos el orden horizontal.
-              let uvCoords: [number, number][];
-              if (d !== 1 && cell.backface) {
-                uvCoords = [
-                  [0, 0],
-                  [0, h],
-                  [w, h],
-                  [w, 0]
-                ];
-              } else {
-                uvCoords = [
-                  [0, 0],
-                  [w, 0],
-                  [w, h],
-                  [0, h]
-                ];
+              // Calcular UV basadas en la posición de cada vértice en el plano de la cara.
+              // Esto asegura que cada voxel se texturice con un tile de 1x1 independientemente de la fusión.
+              const quadUVs: [number, number][] = [];
+              for (let n = 0; n < 4; n++) {
+                const vx = vertices[n][0];
+                const vy = vertices[n][1];
+                const vz = vertices[n][2];
+                let uCoord = 0, vCoord = 0;
+                if (d === 1) {
+                  // Para caras horizontales, usar X y Z
+                  uCoord = vx;
+                  vCoord = vz;
+                } else if (d === 0) {
+                  // Cara en X: usar Z y Y
+                  uCoord = vz;
+                  vCoord = vy;
+                } else if (d === 2) {
+                  // Cara en Z: usar X y Y
+                  uCoord = vx;
+                  vCoord = vy;
+                }
+                quadUVs.push([uCoord, vCoord]);
               }
 
+              // Añadir atributos para cada vértice
               for (let n = 0; n < 4; n++) {
                 positions.push(vertices[n][0], vertices[n][1], vertices[n][2]);
                 normals.push(normal[0], normal[1], normal[2]);
                 colors.push(voxelColor.r, voxelColor.g, voxelColor.b);
-                uvs.push(uvCoords[n][0], uvCoords[n][1]);
+                uvs.push(quadUVs[n][0], quadUVs[n][1]);
                 waterFlags.push(isWater);
               }
 
@@ -247,7 +250,7 @@ export class Chunk {
 
               for (let l = 0; l < h; l++) {
                 for (let k = 0; k < w; k++) {
-                  mask[i + k + (j + l) * dims[u]] = null;
+                  mask[i + k + (j + l) * dimU] = null;
                 }
               }
               i += w;
@@ -273,20 +276,21 @@ export class Chunk {
       side: THREE.FrontSide,
       transparent: true
     });
+    // Asegúrate de que el mapa tenga wrap en ambos ejes para repetir la textura
+    if (material.map) {
+      material.map.wrapS = THREE.RepeatWrapping;
+      material.map.wrapT = THREE.RepeatWrapping;
+    }
 
-    // Refactorización del shader para el agua:
     material.onBeforeCompile = (shader) => {
-      // Declarar uniform para el tiempo
       shader.uniforms.uTime = { value: 0.0 };
 
-      // Declarar atributo y varying para identificar voxeles de agua
       shader.vertexShader = `
         uniform float uTime;
         attribute float isWater;
         varying float vIsWater;
       ` + shader.vertexShader;
 
-      // Recalcular UV para agua basado en coordenadas de mundo (para transiciones consistentes)
       shader.vertexShader = shader.vertexShader.replace(
         '#include <uv_vertex>',
         `#include <uv_vertex>
@@ -296,18 +300,15 @@ export class Chunk {
          }`
       );
 
-      // Inyectar deformación de vértices para simular olas (solo para agua)
       shader.vertexShader = shader.vertexShader.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
          if(isWater > 0.5) {
            vec4 worldPos = modelMatrix * vec4( position, 1.0 );
-           // Desplaza la altura en función de la posición en x y el tiempo
            transformed.y += sin(worldPos.x * 0.1 + uTime * 3.0) * 0.1;
          }`
       );
 
-      // Pasar el atributo isWater al fragment shader
       shader.vertexShader = shader.vertexShader.replace(
         '#include <color_vertex>',
         `#include <color_vertex>
@@ -315,7 +316,6 @@ export class Chunk {
          `
       );
 
-      // En el fragment shader se puede ajustar el color dinámicamente (opcional)
       shader.fragmentShader = `
         uniform float uTime;
         varying float vIsWater;
@@ -325,7 +325,6 @@ export class Chunk {
         '#include <dithering_fragment>',
         `#include <dithering_fragment>
          if(vIsWater > 0.5){
-           // Mezcla sutilmente el color para dar sensación de movimiento
            gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.0, 0.5, 1.0), 0.1);
          }`
       );
