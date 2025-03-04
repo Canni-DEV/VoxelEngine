@@ -47,20 +47,46 @@ export class Renderer {
     this.dayNightConfig.transitionDuration;
 
   constructor() {
+    THREE.ShaderChunk.fog_pars_fragment = `
+    #ifdef USE_FOG
+      uniform vec3 fogColor;
+      uniform float fogNear;
+      uniform float fogFar;
+      varying vec3 vWorldPosition;
+    #endif
+    `;
+        THREE.ShaderChunk.fog_fragment = `
+    #ifdef USE_FOG
+      float fogDistance = length(vWorldPosition - cameraPosition);
+      float fogFactor = smoothstep(fogNear, fogFar, fogDistance);
+      gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, fogFactor);
+    #endif
+    `;
+        THREE.ShaderChunk.fog_pars_vertex = `
+    #ifdef USE_FOG
+      varying vec3 vWorldPosition;
+    #endif
+    `;
+        THREE.ShaderChunk.fog_vertex = `
+    #ifdef USE_FOG
+      vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+    #endif
+    `;
+
     this.scene = new THREE.Scene();
     this.scene.background = this.dayNightConfig.dayBackground.clone();
+    this.scene.fog = new THREE.Fog(this.scene.background.clone(), 60, 150);
 
     this.camera = new THREE.PerspectiveCamera(
-      75,
+      60,
       window.innerWidth / window.innerHeight,
       0.05,
-      2000
+      1000
     );
     this.scene.add(this.camera);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.shadowMap.enabled = true;
     this.renderer.toneMappingExposure = 1;
     document.body.appendChild(this.renderer.domElement);
     this.domElement = this.renderer.domElement;
@@ -126,7 +152,9 @@ export class Renderer {
     this.ambientLight.intensity = ambientIntensity;
     this.directionalLight.intensity = directionalIntensity;
 
-    this.scene.background = this.dayNightConfig.dayBackground.clone().lerp(this.dayNightConfig.nightBackground, factor);
+    const newBackground = this.dayNightConfig.dayBackground.clone().lerp(this.dayNightConfig.nightBackground, factor);
+    this.scene.background = newBackground;
+    this.scene.fog?.color.copy(newBackground);
   }
 
   public render(delta: number) {

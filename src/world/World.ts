@@ -19,7 +19,11 @@ export class World {
     return this.chunkManager.getLoadedChunks();
   }
 
-  public WorldLoaded():boolean{
-    return this.chunkManager.worldLoaded();
+  public isWorldLoaded():boolean{
+    return this.chunkManager.isWorldLoaded();
+  }
+
+  public closestFreePosition(position:THREE.Vector3):THREE.Vector3{
+    return this.chunkManager.closestFreeSpace(position);
   }
 }

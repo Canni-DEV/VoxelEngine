@@ -53,6 +53,10 @@ export class TerrainGenerator {
     return min + (value) * (max - min);
   }
 
+  public getSeaLevel():number{
+    return this.seaLevel;
+  }
+
   /**
    * Calcula las propiedades del terreno en una posición global.
    * Devuelve: height, temperature, rainfall y river.
@@ -236,20 +240,5 @@ export class TerrainGenerator {
         }
       }
     }
-  }
-
-  generateTestChunk(chunkX: number, chunkZ: number, size: number): VoxelType[][][] {
-    const data: VoxelType[][][] = [];
-    for (let x = 0; x < size; x++) {
-      data[x] = [];
-      for (let y = 0; y < this.maxHeight; y++) {
-        data[x][y] = new Array(size).fill(VoxelType.AIR);
-      }
-    }
-    const centerX = Math.floor(size / 2);
-    const centerY = 0;
-    const centerZ = Math.floor(size / 2);
-    data[centerX][centerY][centerZ] = VoxelType.DIRT;
-    return data;
   }
 }
