@@ -7,22 +7,23 @@ export class Player {
   public camera: THREE.PerspectiveCamera;
   public flying: boolean = false;
   private world: World;
-  private readonly gravity: number = 0.8;
+  private readonly gravity: number = 0.75;
 
   private readonly colliderHalfWidth: number = 0.3;
   private readonly colliderHeight: number = 1.6;
-  private readonly maxVerticalVelocity: number = 0.6;
+  private readonly maxVerticalVelocity: number = 0.4;
 
-  // Umbral para ignorar solapamientos mínimos
-  private readonly epsilon: number = 0.005;
+  private readonly epsilon: number = 0.001;
 
   private flashlight: THREE.SpotLight | null = null;
+
+  private playing:boolean=false;
 
   constructor(camera: THREE.PerspectiveCamera, world: World) {
     this.createFlashLight(camera);
     this.camera = camera;
     this.world = world;
-    this.position = new THREE.Vector3(10, 75, 0);
+    this.position = new THREE.Vector3(0, 150, 0);
     this.velocity = new THREE.Vector3(0, 0, 0);
     this.camera.position.copy(this.position);
   }
@@ -39,9 +40,19 @@ export class Player {
     }
   }
 
+  public spawnStart(){
+        this.position = this.world.closestFreePosition(new THREE.Vector3(0,0,0));
+  }
+
   public update(delta: number) {
-    if (!this.world.WorldLoaded()) {
+    if (!this.world.isWorldLoaded()) {
       return;
+    }
+
+    if(!this.playing)
+    {
+      this.spawnStart();
+      this.playing = true;
     }
 
     if (!this.flying) {

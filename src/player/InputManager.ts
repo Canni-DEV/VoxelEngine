@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { Chunk } from '../world/Chunk';
 import { VoxelType } from '../world/TerrainGenerator';
 import { ChunkManager } from '../world/ChunkManager';
 
@@ -7,7 +6,6 @@ export class InputManager {
   private camera: THREE.PerspectiveCamera;
   private scene: THREE.Scene;
   private raycaster: THREE.Raycaster;
-  private selectionIndicator: THREE.Mesh;
   private chunkManager: ChunkManager;
 
   constructor(camera: THREE.PerspectiveCamera, scene: THREE.Scene, chunkManager: ChunkManager) {
@@ -16,41 +14,8 @@ export class InputManager {
     this.chunkManager = chunkManager;
     this.raycaster = new THREE.Raycaster();
 
-    const indicatorGeometry = new THREE.PlaneGeometry(0.1, 0.1);
-    const indicatorMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffff00,
-      opacity: 0.2,
-      transparent: true,
-      side: THREE.DoubleSide,
-      depthTest: false
-    });
-    this.selectionIndicator = new THREE.Mesh(indicatorGeometry, indicatorMaterial);
-    this.selectionIndicator.visible = false;
-    this.scene.add(this.selectionIndicator);
-
     window.addEventListener('mousedown', this.onMouseDown.bind(this), false);
     window.addEventListener('contextmenu', (e) => e.preventDefault());
-  }
-
-  public DrawIndicator() {
-    const center = new THREE.Vector2(0, 0);
-    this.raycaster.setFromCamera(center, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-    if (intersects.length === 0) {
-      this.selectionIndicator.visible = false;
-      return;
-    }
-    const intersection = intersects[0];
-    const faceNormal = intersection.face?.normal;
-    if (!faceNormal) {
-      this.selectionIndicator.visible = false;
-      return;
-    }
-    const indicatorPos = intersection.point.clone().add(faceNormal.clone().multiplyScalar(0.01));
-    this.selectionIndicator.position.copy(indicatorPos);
-    const target = indicatorPos.clone().add(faceNormal);
-    this.selectionIndicator.lookAt(target);
-    this.selectionIndicator.visible = true;
   }
 
   public SetVoxel() {
@@ -81,6 +46,11 @@ export class InputManager {
     const addGlobalX = voxelX + offsetX;
     const addGlobalY = voxelY + offsetY;
     const addGlobalZ = voxelZ + offsetZ;
+
+
+    if (this.checkPlayerPosition(addGlobalX, addGlobalY, addGlobalZ))
+      return;
+
     const addChunkX = Math.floor(addGlobalX / this.chunkManager.chunkSize);
     const addChunkZ = Math.floor(addGlobalZ / this.chunkManager.chunkSize);
     const addChunk = this.chunkManager.getChunkAt(addChunkX, addChunkZ);
@@ -147,7 +117,6 @@ export class InputManager {
     const localZ = voxelZ - targetChunk.z * targetChunk.size;
 
     if (event.button === 0) {
-      // this.DrawIndicator();
       targetChunk.updateVoxel(localX, voxelY, localZ, VoxelType.AIR);
     } else if (event.button === 2) {
       const faceNormal = intersection.face?.normal.clone();
@@ -158,6 +127,10 @@ export class InputManager {
       const addGlobalX = voxelX + offsetX;
       const addGlobalY = voxelY + offsetY;
       const addGlobalZ = voxelZ + offsetZ;
+
+      if (this.checkPlayerPosition(addGlobalX, addGlobalY, addGlobalZ))
+        return;
+
       const addChunkX = Math.floor(addGlobalX / this.chunkManager.chunkSize);
       const addChunkZ = Math.floor(addGlobalZ / this.chunkManager.chunkSize);
       const addChunk = this.chunkManager.getChunkAt(addChunkX, addChunkZ);
@@ -168,5 +141,16 @@ export class InputManager {
       if (addChunk.terrainData[addLocalX][addGlobalY][addLocalZ] !== VoxelType.AIR) return;
       addChunk.updateVoxel(addLocalX, addGlobalY, addLocalZ, VoxelType.TRUNK);
     }
+  }
+
+  // Evitar insertar en la posición del jugador
+  // Se asume que la posición del jugador es la de la cámara menos 1.5 en Y (para bajar al nivel del cuerpo)
+  private checkPlayerPosition(addGlobalX: number, addGlobalY: number, addGlobalZ: number) {
+    const playerVoxelX = Math.floor(this.camera.position.x);
+    const playerVoxelY = Math.floor(this.camera.position.y - 1.5);
+    const playerVoxelZ = Math.floor(this.camera.position.z);
+    return addGlobalX === playerVoxelX &&
+      addGlobalY === playerVoxelY &&
+      addGlobalZ === playerVoxelZ;
   }
 }
