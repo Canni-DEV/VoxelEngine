@@ -9,9 +9,8 @@ export class UIManager {
       this.frameCount = 0;
     }
   
-    public update() {
+    public update(now:number) {
       this.frameCount++;
-      const now = performance.now();
       if (now - this.lastTime > 1000) {
         const fps = Math.round((this.frameCount * 1000) / (now - this.lastTime));
         this.fpsElement.innerText = `FPS: ${fps}`;

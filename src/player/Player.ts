@@ -7,7 +7,7 @@ export class Player {
   public camera: THREE.PerspectiveCamera;
   public flying: boolean = false;
   private world: World;
-  private readonly gravity: number = 0.75;
+  private readonly gravity: number = 0.72;
 
   private readonly colliderHalfWidth: number = 0.3;
   private readonly colliderHeight: number = 1.6;
@@ -17,12 +17,14 @@ export class Player {
 
   private flashlight: THREE.SpotLight | null = null;
 
-  private playing:boolean=false;
+  private playing: boolean = false;
 
   constructor(camera: THREE.PerspectiveCamera, world: World) {
     this.createFlashLight(camera);
     this.camera = camera;
     this.world = world;
+    this.world.onNight = this.enableFlashlight.bind(this);
+    this.world.onDay = this.disableFlashlight.bind(this);
     this.position = new THREE.Vector3(0, 150, 0);
     this.velocity = new THREE.Vector3(0, 0, 0);
     this.camera.position.copy(this.position);
@@ -30,7 +32,7 @@ export class Player {
 
   private createFlashLight(camera: THREE.PerspectiveCamera) {
     if (!this.flashlight) {
-      this.flashlight = new THREE.SpotLight(0xffffff, 1, 20, Math.PI / 5, 0.5, 2);
+      this.flashlight = new THREE.SpotLight(0xffffff, 0.2, 20, Math.PI / 5, 0.5, 2);
       this.flashlight.position.set(0, 0, 0);
       const targetObject = new THREE.Object3D();
       targetObject.position.set(0, 0, -1);
@@ -40,8 +42,20 @@ export class Player {
     }
   }
 
-  public spawnStart(){
-        this.position = this.world.closestFreePosition(new THREE.Vector3(0,0,0));
+  private enableFlashlight(): void {
+    if (this.flashlight) {
+      this.flashlight.intensity = 1;
+    }
+  }
+
+  private disableFlashlight(): void {
+    if (this.flashlight) {
+      this.flashlight.intensity = 0.2;
+    }
+  }
+
+  public spawnStart() {
+    this.position = this.world.getClosestFreePosition(new THREE.Vector3(0, 0, 0));
   }
 
   public update(delta: number) {
@@ -49,8 +63,7 @@ export class Player {
       return;
     }
 
-    if(!this.playing)
-    {
+    if (!this.playing) {
       this.spawnStart();
       this.playing = true;
     }
@@ -89,7 +102,6 @@ export class Player {
     };
   }
 
-  // Función auxiliar para detectar la intersección entre dos AABB.
   private aabbIntersect(a: { min: THREE.Vector3, max: THREE.Vector3 },
     b: { min: THREE.Vector3, max: THREE.Vector3 }): boolean {
     return (a.min.x < b.max.x && a.max.x > b.min.x) &&
@@ -97,7 +109,6 @@ export class Player {
       (a.min.z < b.max.z && a.max.z > b.min.z);
   }
 
-  // Resolver colisiones con bloques sólidos de los chunks cercanos.
   private resolveCollisions() {
     const loadedChunks = this.world.getLoadedChunks();
     let collisionResolved = true;

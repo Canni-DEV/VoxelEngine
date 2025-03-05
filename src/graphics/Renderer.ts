@@ -21,30 +21,23 @@ export class Renderer {
   public camera: THREE.PerspectiveCamera;
   public renderer: THREE.WebGLRenderer;
   public domElement: HTMLCanvasElement;
-  private composer: EffectComposer;
-  private fxaaPass: ShaderPass;
+  public ambientLight: THREE.AmbientLight;
+  public directionalLight: THREE.DirectionalLight;
 
-  private ambientLight: THREE.AmbientLight;
-  private directionalLight: THREE.DirectionalLight;
-
-  private dayNightConfig: DayNightConfig = {
+  public dayNightConfig: DayNightConfig = {
     dayBackground: new THREE.Color(0x6FA8DC),
     nightBackground: new THREE.Color(0x000000),
     dayAmbient: 0.3,
     nightAmbient: 0.1,
     dayDirectional: 0.6,
-    nightDirectional: 0.0,
+    nightDirectional: 0,
     dayDuration: 90,
     nightDuration: 120,
     transitionDuration: 30
   };
 
-  private cycleTime: number = 0;
-  private totalCycleTime: number =
-    this.dayNightConfig.dayDuration +
-    this.dayNightConfig.transitionDuration +
-    this.dayNightConfig.nightDuration +
-    this.dayNightConfig.transitionDuration;
+  private composer: EffectComposer;
+  private fxaaPass: ShaderPass;
 
   constructor() {
     THREE.ShaderChunk.fog_pars_fragment = `
@@ -55,19 +48,19 @@ export class Renderer {
       varying vec3 vWorldPosition;
     #endif
     `;
-        THREE.ShaderChunk.fog_fragment = `
+    THREE.ShaderChunk.fog_fragment = `
     #ifdef USE_FOG
       float fogDistance = length(vWorldPosition - cameraPosition);
       float fogFactor = smoothstep(fogNear, fogFar, fogDistance);
       gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, fogFactor);
     #endif
     `;
-        THREE.ShaderChunk.fog_pars_vertex = `
+    THREE.ShaderChunk.fog_pars_vertex = `
     #ifdef USE_FOG
       varying vec3 vWorldPosition;
     #endif
     `;
-        THREE.ShaderChunk.fog_vertex = `
+    THREE.ShaderChunk.fog_vertex = `
     #ifdef USE_FOG
       vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
     #endif
@@ -87,7 +80,6 @@ export class Renderer {
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.toneMappingExposure = 1;
     document.body.appendChild(this.renderer.domElement);
     this.domElement = this.renderer.domElement;
 
@@ -95,7 +87,7 @@ export class Renderer {
     this.scene.add(this.ambientLight);
 
     this.directionalLight = new THREE.DirectionalLight(0xffffff, this.dayNightConfig.dayDirectional);
-    this.directionalLight.position.set(0, 1000, 500);
+    this.directionalLight.position.set(500, 1000, 500);
     this.directionalLight.castShadow = true;
     this.scene.add(this.directionalLight);
 
@@ -120,45 +112,7 @@ export class Renderer {
     this.fxaaPass.uniforms['resolution'].value.set(1 / width, 1 / height);
   }
 
-  private updateDayNightCycle(delta: number) {
-    this.cycleTime = (this.cycleTime + delta) % this.totalCycleTime;
-
-    // Determinar la etapa actual del ciclo:
-    // Segmentos:
-    // 0 - dayDuration: día completo (factor = 0)
-    // dayDuration - (dayDuration + transitionDuration): transición día a noche (factor: 0->1)
-    // (dayDuration + transitionDuration) - (dayDuration + transitionDuration + nightDuration): noche completa (factor = 1)
-    // (dayDuration + transitionDuration + nightDuration) - totalCycleTime: transición noche a día (factor: 1->0)
-    const { dayDuration, nightDuration, transitionDuration } = this.dayNightConfig;
-    let factor = 0; // 0 = día, 1 = noche
-
-    if (this.cycleTime < dayDuration) {
-      // Día completo
-      factor = 0;
-    } else if (this.cycleTime < dayDuration + transitionDuration) {
-      // Transición de día a noche
-      factor = (this.cycleTime - dayDuration) / transitionDuration;
-    } else if (this.cycleTime < dayDuration + transitionDuration + nightDuration) {
-      // Noche completa
-      factor = 1;
-    } else {
-      // Transición de noche a día
-      factor = 1 - ((this.cycleTime - dayDuration - transitionDuration - nightDuration) / transitionDuration);
-    }
-
-    const ambientIntensity = THREE.MathUtils.lerp(this.dayNightConfig.dayAmbient, this.dayNightConfig.nightAmbient, factor);
-    const directionalIntensity = THREE.MathUtils.lerp(this.dayNightConfig.dayDirectional, this.dayNightConfig.nightDirectional, factor);
-
-    this.ambientLight.intensity = ambientIntensity;
-    this.directionalLight.intensity = directionalIntensity;
-
-    const newBackground = this.dayNightConfig.dayBackground.clone().lerp(this.dayNightConfig.nightBackground, factor);
-    this.scene.background = newBackground;
-    this.scene.fog?.color.copy(newBackground);
-  }
-
   public render(delta: number) {
-    this.updateDayNightCycle(delta);
     this.composer.render();
   }
 }

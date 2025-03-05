@@ -8,7 +8,11 @@ export class InputManager {
   private raycaster: THREE.Raycaster;
   private chunkManager: ChunkManager;
 
-  constructor(camera: THREE.PerspectiveCamera, scene: THREE.Scene, chunkManager: ChunkManager) {
+  constructor(
+    camera: THREE.PerspectiveCamera,
+    scene: THREE.Scene,
+    chunkManager: ChunkManager
+  ) {
     this.camera = camera;
     this.scene = scene;
     this.chunkManager = chunkManager;
@@ -18,139 +22,113 @@ export class InputManager {
     window.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
-  public SetVoxel() {
-    const center = new THREE.Vector2(0, 0);
-    this.raycaster.setFromCamera(center, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-    if (intersects.length === 0) return;
-    const intersection = intersects[0];
+  public SetVoxel(): void {
+    const intersection = this.raycastCenter();
+    if (!intersection) return;
 
-    const epsilon = 0.1;
-    const adjustedPoint = intersection.point.clone().sub(
-      intersection.face!.normal.clone().multiplyScalar(epsilon)
-    );
-    const voxelX = Math.floor(adjustedPoint.x);
-    const voxelY = Math.floor(adjustedPoint.y);
-    const voxelZ = Math.floor(adjustedPoint.z);
-
-    const targetChunkX = Math.floor(voxelX / this.chunkManager.chunkSize);
-    const targetChunkZ = Math.floor(voxelZ / this.chunkManager.chunkSize);
-    const targetChunk = this.chunkManager.getChunkAt(targetChunkX, targetChunkZ);
-    if (!targetChunk) return;
-
+    const voxelCoords = this.getVoxelCoordinates(intersection);
     const faceNormal = intersection.face?.normal.clone();
     if (!faceNormal) return;
-    const offsetX = Math.round(faceNormal.x);
-    const offsetY = Math.round(faceNormal.y);
-    const offsetZ = Math.round(faceNormal.z);
-    const addGlobalX = voxelX + offsetX;
-    const addGlobalY = voxelY + offsetY;
-    const addGlobalZ = voxelZ + offsetZ;
+    const addCoords = this.getAdditionCoordinates(voxelCoords, faceNormal);
+    if (this.checkPlayerPosition(addCoords.x, addCoords.y, addCoords.z)) return;
 
-
-    if (this.checkPlayerPosition(addGlobalX, addGlobalY, addGlobalZ))
+    const addData = this.getChunkAndLocalCoords(
+      addCoords.x,
+      addCoords.y,
+      addCoords.z
+    );
+    if (!addData) return;
+    if (addData.chunk.terrainData[addData.localX][addCoords.y][addData.localZ] !== VoxelType.AIR)
       return;
-
-    const addChunkX = Math.floor(addGlobalX / this.chunkManager.chunkSize);
-    const addChunkZ = Math.floor(addGlobalZ / this.chunkManager.chunkSize);
-    const addChunk = this.chunkManager.getChunkAt(addChunkX, addChunkZ);
-    if (!addChunk) return;
-    const addLocalX = addGlobalX - addChunk.x * addChunk.size;
-    const addLocalZ = addGlobalZ - addChunk.z * addChunk.size;
-    if (addLocalX < 0 || addLocalX >= addChunk.size || addLocalZ < 0 || addLocalZ >= addChunk.size) return;
-    if (addChunk.terrainData[addLocalX][addGlobalY][addLocalZ] !== VoxelType.AIR) return;
-    addChunk.updateVoxel(addLocalX, addGlobalY, addLocalZ, VoxelType.TRUNK);
+    addData.chunk.updateVoxel(addData.localX, addCoords.y, addData.localZ, VoxelType.TRUNK);
   }
 
-  public DeleteVoxel() {
-    const center = new THREE.Vector2(0, 0);
-    this.raycaster.setFromCamera(center, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-    if (intersects.length === 0) return;
-    const intersection = intersects[0];
+  public DeleteVoxel(): void {
+    const intersection = this.raycastCenter();
+    if (!intersection) return;
 
-    const epsilon = 0.1;
-    const adjustedPoint = intersection.point.clone().sub(
-      intersection.face!.normal.clone().multiplyScalar(epsilon)
+    const voxelCoords = this.getVoxelCoordinates(intersection);
+    const targetData = this.getChunkAndLocalCoords(
+      voxelCoords.x,
+      voxelCoords.y,
+      voxelCoords.z
     );
-    const voxelX = Math.floor(adjustedPoint.x);
-    const voxelY = Math.floor(adjustedPoint.y);
-    const voxelZ = Math.floor(adjustedPoint.z);
-
-    // Determinar las coordenadas globales del chunk objetivo.
-    const targetChunkX = Math.floor(voxelX / this.chunkManager.chunkSize);
-    const targetChunkZ = Math.floor(voxelZ / this.chunkManager.chunkSize);
-    const targetChunk = this.chunkManager.getChunkAt(targetChunkX, targetChunkZ);
-    if (!targetChunk) return;
-
-    // Convertir a coordenadas locales dentro del chunk.
-    const localX = voxelX - targetChunk.x * targetChunk.size;
-    const localZ = voxelZ - targetChunk.z * targetChunk.size;
-
-    targetChunk.updateVoxel(localX, voxelY, localZ, VoxelType.AIR);
+    if (!targetData) return;
+    targetData.chunk.updateVoxel(targetData.localX, voxelCoords.y, targetData.localZ, VoxelType.AIR);
   }
 
-  private onMouseDown(event: MouseEvent) {
+  private onMouseDown(event: MouseEvent): void {
     event.preventDefault();
-    const center = new THREE.Vector2(0, 0);
-    this.raycaster.setFromCamera(center, this.camera);
-    const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-    if (intersects.length === 0) return;
-    const intersection = intersects[0];
-
-    const epsilon = 0.1;
-    const adjustedPoint = intersection.point.clone().sub(
-      intersection.face!.normal.clone().multiplyScalar(epsilon)
+    const intersection = this.raycastCenter();
+    if (!intersection) return;
+    const voxelCoords = this.getVoxelCoordinates(intersection);
+    const targetData = this.getChunkAndLocalCoords(
+      voxelCoords.x,
+      voxelCoords.y,
+      voxelCoords.z
     );
-    const voxelX = Math.floor(adjustedPoint.x);
-    const voxelY = Math.floor(adjustedPoint.y);
-    const voxelZ = Math.floor(adjustedPoint.z);
+    if (!targetData) return;
 
-    // Determinar las coordenadas globales del chunk objetivo.
-    const targetChunkX = Math.floor(voxelX / this.chunkManager.chunkSize);
-    const targetChunkZ = Math.floor(voxelZ / this.chunkManager.chunkSize);
-    const targetChunk = this.chunkManager.getChunkAt(targetChunkX, targetChunkZ);
-    if (!targetChunk) return;
-
-    // Convertir a coordenadas locales dentro del chunk.
-    const localX = voxelX - targetChunk.x * targetChunk.size;
-    const localZ = voxelZ - targetChunk.z * targetChunk.size;
-
-    if (event.button === 0) {
-      targetChunk.updateVoxel(localX, voxelY, localZ, VoxelType.AIR);
-    } else if (event.button === 2) {
+    if (event.button === 0) { // Botón izquierdo: eliminar voxel
+      targetData.chunk.updateVoxel(targetData.localX, voxelCoords.y, targetData.localZ, VoxelType.AIR);
+    } else if (event.button === 2) { // Botón derecho: agregar voxel
       const faceNormal = intersection.face?.normal.clone();
       if (!faceNormal) return;
-      const offsetX = Math.round(faceNormal.x);
-      const offsetY = Math.round(faceNormal.y);
-      const offsetZ = Math.round(faceNormal.z);
-      const addGlobalX = voxelX + offsetX;
-      const addGlobalY = voxelY + offsetY;
-      const addGlobalZ = voxelZ + offsetZ;
-
-      if (this.checkPlayerPosition(addGlobalX, addGlobalY, addGlobalZ))
+      const addCoords = this.getAdditionCoordinates(voxelCoords, faceNormal);
+      if (this.checkPlayerPosition(addCoords.x, addCoords.y, addCoords.z)) return;
+      const addData = this.getChunkAndLocalCoords(addCoords.x, addCoords.y, addCoords.z);
+      if (!addData) return;
+      if (addData.chunk.terrainData[addData.localX][addCoords.y][addData.localZ] !== VoxelType.AIR)
         return;
-
-      const addChunkX = Math.floor(addGlobalX / this.chunkManager.chunkSize);
-      const addChunkZ = Math.floor(addGlobalZ / this.chunkManager.chunkSize);
-      const addChunk = this.chunkManager.getChunkAt(addChunkX, addChunkZ);
-      if (!addChunk) return;
-      const addLocalX = addGlobalX - addChunk.x * addChunk.size;
-      const addLocalZ = addGlobalZ - addChunk.z * addChunk.size;
-      if (addLocalX < 0 || addLocalX >= addChunk.size || addLocalZ < 0 || addLocalZ >= addChunk.size) return;
-      if (addChunk.terrainData[addLocalX][addGlobalY][addLocalZ] !== VoxelType.AIR) return;
-      addChunk.updateVoxel(addLocalX, addGlobalY, addLocalZ, VoxelType.TRUNK);
+      addData.chunk.updateVoxel(addData.localX, addCoords.y, addData.localZ, VoxelType.TRUNK);
     }
   }
 
-  private checkPlayerPosition(addGlobalX: number, addGlobalY: number, addGlobalZ: number) {
+  private raycastCenter(): THREE.Intersection | null {
+    const center = new THREE.Vector2(0, 0);
+    this.raycaster.setFromCamera(center, this.camera);
+    const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+    return intersects.length ? intersects[0] : null;
+  }
+
+  private getVoxelCoordinates(intersection: THREE.Intersection, epsilon: number = 0.1): THREE.Vector3 {
+    const normal = intersection.face!.normal;
+    return new THREE.Vector3(
+      Math.floor(intersection.point.x - normal.x * epsilon),
+      Math.floor(intersection.point.y - normal.y * epsilon),
+      Math.floor(intersection.point.z - normal.z * epsilon)
+    );
+  }
+
+  private getAdditionCoordinates(voxelCoords: THREE.Vector3, faceNormal: THREE.Vector3): THREE.Vector3 {
+    return new THREE.Vector3(
+      voxelCoords.x + Math.round(faceNormal.x),
+      voxelCoords.y + Math.round(faceNormal.y),
+      voxelCoords.z + Math.round(faceNormal.z)
+    );
+  }
+
+  private getChunkAndLocalCoords(globalX: number, globalY: number, globalZ: number):
+    { chunk: any, localX: number, localZ: number } | null {
+    const chunkX = Math.floor(globalX / this.chunkManager.chunkSize);
+    const chunkZ = Math.floor(globalZ / this.chunkManager.chunkSize);
+    const chunk = this.chunkManager.getChunkAt(chunkX, chunkZ);
+    if (!chunk) return null;
+    const localX = globalX - chunk.x * chunk.size;
+    const localZ = globalZ - chunk.z * chunk.size;
+    if (localX < 0 || localX >= chunk.size || localZ < 0 || localZ >= chunk.size) return null;
+    return { chunk, localX, localZ };
+  }
+
+  private checkPlayerPosition(addGlobalX: number, addGlobalY: number, addGlobalZ: number): boolean {
     const playerVoxelX = Math.floor(this.camera.position.x);
     const playerVoxelY = Math.floor(this.camera.position.y - 1.5);
     const playerVoxelZ = Math.floor(this.camera.position.z);
     return (addGlobalX === playerVoxelX &&
-      addGlobalY === playerVoxelY &&
-      addGlobalZ === playerVoxelZ) || (addGlobalX === playerVoxelX &&
-        addGlobalY === playerVoxelY + 1 &&
-        addGlobalZ === playerVoxelZ);
+            addGlobalY === playerVoxelY &&
+            addGlobalZ === playerVoxelZ) ||
+           (addGlobalX === playerVoxelX &&
+            addGlobalY === playerVoxelY + 1 &&
+            addGlobalZ === playerVoxelZ);
   }
 }
