@@ -15,6 +15,8 @@ export class Controls {
   private moveUp = false;
   private moveDown = false;
 
+  private jump = false;
+
   private pointerLocked = false;
 
   private yaw = 0;
@@ -67,7 +69,7 @@ export class Controls {
         if (this.player.flying) {
           this.moveUp = true;
         } else {
-          this.player.velocity.y = this.jumpSpeed;
+          this.jump = true;
         }
         break;
 
@@ -206,7 +208,7 @@ export class Controls {
     const btnActionRight = this.createMobileButton('D');
     btnActionRight.addEventListener('touchstart', (e) => { this.handleActionRight(); e.preventDefault(); });
     const btnActionJump = this.createMobileButton('J');
-    btnActionJump.addEventListener('touchstart', (e) => { this.player.velocity.y = this.jumpSpeed; e.preventDefault(); });
+    btnActionJump.addEventListener('touchstart', (e) => { this.jump = true; e.preventDefault(); });
     actionContainer.appendChild(btnActionLeft);
     actionContainer.appendChild(btnActionRight);
     actionContainer.appendChild(btnActionJump);
@@ -304,6 +306,11 @@ export class Controls {
     if (this.player.flying) {
       if (this.moveUp) this.player.position.y += this.verticalSpeed * delta;
       if (this.moveDown) this.player.position.y -= this.verticalSpeed * delta;
+    }else{
+      if (this.jump){
+          this.player.velocity.y = this.jumpSpeed;
+        this.jump = false;
+      }
     }
   }
 }

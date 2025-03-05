@@ -69,7 +69,11 @@ export class Player {
     }
 
     if (!this.flying) {
-      this.velocity.y = Math.min(Math.max(this.velocity.y - this.gravity * delta, -this.maxVerticalVelocity), this.maxVerticalVelocity);
+      // Integración semi-implícita de Euler
+      this.velocity.y -= this.gravity * delta; 
+
+      // Clampeamos la velocidad vertical para evitar valores extremos
+      this.velocity.y = Math.max(Math.min(this.velocity.y, this.maxVerticalVelocity), -this.maxVerticalVelocity);
     } else {
       this.velocity.y = 0;
     }
