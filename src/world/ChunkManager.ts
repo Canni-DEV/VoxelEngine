@@ -7,8 +7,8 @@ export class ChunkManager {
   private chunks: Map<string, Chunk>;
   private modifiedChunks: Map<string, Chunk>;
   public chunkSize: number = 16;
-  private renderDistance: number = 10;
-  private renderDistanceDelete: number = 13;
+  private renderDistance: number = 12;
+  private renderDistanceDelete: number = 15;
   private terrainGenerator: TerrainGenerator;
   private loadingChunks: boolean = false;
   private loadingChunksKeys: THREE.Vector2[] = [];
@@ -20,11 +20,13 @@ export class ChunkManager {
     this.scene = scene;
     this.chunks = new Map();
     this.modifiedChunks = new Map();
-    this.terrainGenerator = new TerrainGenerator("CanniWorld");
+    const url = new URL(location.href);
+    console.log(url.searchParams.get("seed"))
+    this.terrainGenerator = new TerrainGenerator(url.searchParams.get("seed") || "CanniUCA");
   }
 
   public update(playerPosition: THREE.Vector3) {
-    this.updateShaders();
+    //this.updateShaders();
     const currentChunkX = Math.floor(playerPosition.x / this.chunkSize);
     const currentChunkZ = Math.floor(playerPosition.z / this.chunkSize);
     this.deleteChunks(currentChunkX, currentChunkZ);
@@ -49,12 +51,20 @@ export class ChunkManager {
     return this.firstChunksLoaded;
   }
 
-  private updateShaders() {
+  private updateShaders(): void {
     const time = performance.now() / 1000;
     this.chunks.forEach(chunk => {
-      const material: any = chunk.mesh.material;
-      if (material.userData.shader) {
-        material.userData.shader.uniforms.uTime.value = time;
+      const meshMaterial = chunk.mesh.material;
+      if (Array.isArray(meshMaterial)) {
+        // Iteramos por cada material del mesh
+        meshMaterial.forEach(mat => {
+          if (mat.userData && mat.userData.shader) {
+            mat.userData.shader.uniforms.uTime.value = time;
+          }
+        });
+      } else if (meshMaterial.userData && meshMaterial.userData.shader) {
+        // Si es un único material, lo actualizamos directamente
+        meshMaterial.userData.shader.uniforms.uTime.value = time;
       }
     });
   }
@@ -125,11 +135,6 @@ export class ChunkManager {
     return `${x},${z}`;
   }
 
-  /**
- * Retorna la posición global del voxel "AIR" más cercano a la posición dada.
- * Se busca en los chunks cargados y se asume que cada chunk posee una matriz terrainData
- * indexada como [localX][globalY][localZ].
- */
   public closestFreeSpace(position: THREE.Vector3): THREE.Vector3 {
     // Convertir la posición a coordenadas voxel enteras.
     const startX = Math.floor(position.x);
@@ -139,7 +144,7 @@ export class ChunkManager {
     const maxRadius = 100; // Radio máximo de búsqueda en voxeles.
     let bestCandidate: THREE.Vector3 | null = null;
     let bestDistSq = Infinity;
-  
+    let count = 0;
     // Búsqueda en forma de "capa" (expansión concéntrica) hasta maxRadius.
     for (let r = 0; r <= maxRadius; r++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -190,12 +195,9 @@ export class ChunkManager {
     const chunkZ = Math.floor(globalZ / this.chunkSize);
     const chunk = this.getChunkAt(chunkX, chunkZ);
     if (!chunk) return false;
-    // Calcula la posición local dentro del chunk
     const localX = globalX - chunk.x * this.chunkSize;
     const localZ = globalZ - chunk.z * this.chunkSize;
     if (localX < 0 || localX >= chunk.size || localZ < 0 || localZ >= chunk.size) return false;
-    // Verifica que el valor de Y esté dentro de los límites de la altura del chunk.
-    // Se asume que chunk.terrainData[localX] es un array cuyo largo representa la altura.
     if (globalY < 0 || globalY >= chunk.terrainData[localX].length) return false;
     return chunk.terrainData[localX][globalY][localZ] === voxelType;
   }

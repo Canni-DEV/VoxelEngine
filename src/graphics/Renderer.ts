@@ -68,7 +68,7 @@ export class Renderer {
 
     this.scene = new THREE.Scene();
     this.scene.background = this.dayNightConfig.dayBackground.clone();
-    this.scene.fog = new THREE.Fog(this.scene.background.clone(), 60, 150);
+    this.scene.fog = new THREE.Fog(this.scene.background.clone(), 150, 200);
 
     this.camera = new THREE.PerspectiveCamera(
       60,

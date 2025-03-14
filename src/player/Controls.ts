@@ -82,8 +82,8 @@ export class Controls {
       case 'KeyF':
         this.player.flying = !this.player.flying;
         if (this.player.flying) {
-          this.speed = 25;
-          this.verticalSpeed = 25;
+          this.speed = 30;
+          this.verticalSpeed = 30;
         } else {
           this.speed = 5;
           this.verticalSpeed = 5;

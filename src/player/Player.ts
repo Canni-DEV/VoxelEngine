@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { World } from '../world/World';
+import { VoxelType } from '../world/TerrainGenerator';
 
 export class Player {
   public position: THREE.Vector3;
@@ -25,7 +26,7 @@ export class Player {
     this.world = world;
     this.world.onNight = this.enableFlashlight.bind(this);
     this.world.onDay = this.disableFlashlight.bind(this);
-    this.position = new THREE.Vector3(0, 150, 0);
+    this.position = new THREE.Vector3(0, 200, 0);
     this.velocity = new THREE.Vector3(0, 0, 0);
     this.camera.position.copy(this.position);
   }
@@ -69,10 +70,7 @@ export class Player {
     }
 
     if (!this.flying) {
-      // Integración semi-implícita de Euler
       this.velocity.y -= this.gravity * delta; 
-
-      // Clampeamos la velocidad vertical para evitar valores extremos
       this.velocity.y = Math.max(Math.min(this.velocity.y, this.maxVerticalVelocity), -this.maxVerticalVelocity);
     } else {
       this.velocity.y = 0;
@@ -144,7 +142,7 @@ export class Player {
         for (let i = startI; i < endI; i++) {
           for (let j = startJ; j < endJ; j++) {
             for (let k = startK; k < endK; k++) {
-              if (chunk.terrainData[i][j][k] === 0) continue; // Salta si es aire.
+              if (chunk.terrainData[i][j][k] === 0 || chunk.terrainData[i][j][k] === VoxelType.WATER) continue; // Salta si es aire.
 
               // Calcular el AABB del bloque (cada voxel es de 1x1x1).
               const blockMin = new THREE.Vector3(
