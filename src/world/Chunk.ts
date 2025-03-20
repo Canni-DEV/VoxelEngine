@@ -12,24 +12,34 @@ export class Chunk {
   public static proceduralTexture: THREE.CanvasTexture = Chunk.generateProceduralTexture();
 
   // Colores y lookup para cada tipo de voxel.
-  private static readonly WATER_COLOR = new THREE.Color(0x3399ff);
-  private static readonly SAND_COLOR = new THREE.Color(0xC2B280);
-  private static readonly GRASS_COLOR = new THREE.Color(0x00cc00);
-  private static readonly DIRT_COLOR = new THREE.Color(0x855E42);
-  private static readonly MOUNTAIN_COLOR = new THREE.Color(0x888888);
-  private static readonly SNOW_COLOR = new THREE.Color(0xffffff);
-  private static readonly TRUNK_COLOR = new THREE.Color(0x513C29);
-  private static readonly LEAVES_COLOR = new THREE.Color(0x116303);
+  private static readonly WATER_COLOR = new THREE.Color(0x5CAFEA);
+  private static readonly SAND_COLOR = new THREE.Color(0xEED6A3);
+  private static readonly GRASS_COLOR = new THREE.Color(0x7CCB6E);
+  private static readonly DIRT_COLOR = new THREE.Color(0xA67C52);
+  private static readonly STONE_COLOR = new THREE.Color(0xA1A1A1);
+  private static readonly SNOW_COLOR = new THREE.Color(0xF4F9FF);
+  private static readonly TRUNK_COLOR = new THREE.Color(0x71543A);
+  private static readonly LEAVES_COLOR = new THREE.Color(0x6BAF4B);
+  private static readonly LEAVES_AUTUMN_COLOR = new THREE.Color(0xA3B865);
+  private static readonly LEAVES_YOUNG_COLOR = new THREE.Color(0x94D17D); 
+  private static readonly LEAVES_CHERRY_COLOR = new THREE.Color(0xF5B4D3); 
+  private static readonly CLOUD_COLOR = new THREE.Color(0xFBFCFF);
+  private static readonly BEDROCK_COLOR = new THREE.Color(0x2D2B2E);
 
   private static readonly VOXEL_COLORS: { [key: number]: THREE.Color } = {
     [VoxelType.WATER]: Chunk.WATER_COLOR,
     [VoxelType.SAND]: Chunk.SAND_COLOR,
     [VoxelType.GRASS]: Chunk.GRASS_COLOR,
     [VoxelType.DIRT]: Chunk.DIRT_COLOR,
-    [VoxelType.MOUNTAIN]: Chunk.MOUNTAIN_COLOR,
+    [VoxelType.STONE]: Chunk.STONE_COLOR,
     [VoxelType.SNOW]: Chunk.SNOW_COLOR,
     [VoxelType.TRUNK]: Chunk.TRUNK_COLOR,
     [VoxelType.LEAVES]: Chunk.LEAVES_COLOR,
+    [VoxelType.LEAVES_AUTUMN]: Chunk.LEAVES_AUTUMN_COLOR,
+    [VoxelType.LEAVES_YOUNG]: Chunk.LEAVES_YOUNG_COLOR,
+    [VoxelType.LEAVES_CHERRY]: Chunk.LEAVES_CHERRY_COLOR,
+    [VoxelType.CLOUD]: Chunk.CLOUD_COLOR,
+    [VoxelType.BEDROCK]: Chunk.BEDROCK_COLOR,
   };
 
   constructor(x: number, z: number, size: number, terrainGenerator: TerrainGenerator) {
@@ -69,9 +79,6 @@ export class Chunk {
     return texture;
   }
 
-  /**
-   * Retorna el voxel en la posición dada; si está fuera de rango se considera AIR.
-   */
   private getVoxel(x: number, y: number, z: number): VoxelType {
     if (x < 0 || x >= this.size || y < 0 || y >= this.terrainData[0].length || z < 0 || z >= this.size) {
       return VoxelType.AIR;
@@ -79,31 +86,25 @@ export class Chunk {
     return this.terrainData[x][y][z];
   }
 
-  /**
-   * Crea la malla del chunk aplicando greedy meshing.
-   *
-   * Se recorre cada eje (d = 0: X, d = 1: Y, d = 2: Z). Para cada slice se construye una máscara 2D
-   * comparando el voxel actual (voxelA) y su vecino en la dirección opuesta (voxelB).
-   * Se marca la celda cuando una cara está expuesta, se fusionan áreas contiguas y se generan
-   * los buffers de vértices, índices, normales, colores y UV. Los UV se calculan en función del tamaño
-   * del quad y se ajusta su orden para ciertas caras laterales.
-   *
-   * **Corrección en eje Y:** Para la capa inferior (y==0) se fuerza que la cara se genere como front face,
-   * para que la normal quede apuntando hacia arriba y se ilumine.
-   */
   private createMesh(): THREE.Mesh {
-    const positions: number[] = [];
-    const indices: number[] = [];
-    const colors: number[] = [];
-    const normals: number[] = [];
-    const uvs: number[] = [];
-    const waterFlags: number[] = [];
+    // ================================================================
+    // PASO 1: Malla opaca (greedy meshing) – se ignoran los voxeles de agua
+    // ================================================================
+    const positionsOpaque: number[] = [];
+    const indicesOpaque: number[] = [];
+    const colorsOpaque: number[] = [];
+    const normalsOpaque: number[] = [];
+    const uvsOpaque: number[] = [];
+    let vertexOffsetOpaque = 0;
 
+    // Dimensiones del chunk: [X, Y, Z]
     const dims = [this.size, this.terrainData[0].length, this.size];
     const worldOffset = new THREE.Vector3(this.x * this.size, 0, this.z * this.size);
-    let vertexOffset = 0;
 
-    // Iterar sobre cada eje (0: X, 1: Y, 2: Z)
+    // Función auxiliar para calcular el índice en la máscara 2D
+    const getMaskIndex = (i: number, j: number, width: number): number => i + j * width;
+
+    // Greedy meshing en cada eje (0: X, 1: Y, 2: Z)
     for (let d = 0; d < 3; d++) {
       const u = (d + 1) % 3;
       const v = (d + 2) % 3;
@@ -115,7 +116,7 @@ export class Chunk {
       q[d] = 1;
 
       for (x[d] = 0; x[d] <= dims[d]; x[d]++) {
-        // Crear máscara 2D para la slice actual
+        // Crear la máscara 2D para la slice actual
         const mask: (null | { voxel: VoxelType; backface: boolean })[] =
           new Array(dimU * dimV).fill(null);
 
@@ -124,7 +125,8 @@ export class Chunk {
             x[u] = i;
             x[v] = j;
 
-            const voxelA = (x[d] < dims[d])
+            // Obtener los voxeles A y B, tratando el agua como AIR para la malla opaca
+            let voxelA = (x[d] < dims[d])
               ? this.getVoxel(x[0], x[1], x[2])
               : VoxelType.AIR;
             let voxelB: VoxelType;
@@ -134,43 +136,48 @@ export class Chunk {
             } else {
               voxelB = VoxelType.AIR;
             }
+            if (voxelA === VoxelType.WATER) { voxelA = VoxelType.AIR; }
+            if (voxelB === VoxelType.WATER) { voxelB = VoxelType.AIR; }
 
             let maskValue: null | { voxel: VoxelType; backface: boolean } = null;
             if (voxelA !== VoxelType.AIR && voxelB === VoxelType.AIR) {
-              // En eje Y: para la capa inferior forzamos front face
+              // Para la capa inferior en Y se fuerza front face
               maskValue = (d === 1 && x[1] === 0)
                 ? { voxel: voxelA, backface: false }
                 : { voxel: voxelA, backface: true };
             } else if (voxelA === VoxelType.AIR && voxelB !== VoxelType.AIR) {
               maskValue = { voxel: voxelB, backface: false };
             }
-            mask[i + j * dimU] = maskValue;
+            mask[getMaskIndex(i, j, dimU)] = maskValue;
           }
         }
 
-        // Greedy meshing sobre la máscara 2D
+        // Procesado greedy sobre la máscara 2D
         for (let j = 0; j < dimV; j++) {
           for (let i = 0; i < dimU;) {
-            const idx = i + j * dimU;
+            const idx = getMaskIndex(i, j, dimU);
             const cell = mask[idx];
             if (cell) {
               let w = 1;
-              while (
-                i + w < dimU &&
-                mask[idx + w] &&
-                mask[idx + w]!.voxel === cell.voxel &&
-                mask[idx + w]!.backface === cell.backface
-              ) { w++; }
+              while (i + w < dimU) {
+                const neighbor = mask[getMaskIndex(i + w, j, dimU)];
+                if (neighbor && neighbor.voxel === cell.voxel && neighbor.backface === cell.backface) {
+                  w++;
+                } else {
+                  break;
+                }
+              }
               let h = 1;
               outer: for (; j + h < dimV; h++) {
                 for (let k = 0; k < w; k++) {
-                  const nextCell = mask[i + k + (j + h) * dimU];
-                  if (!nextCell || nextCell.voxel !== cell.voxel || nextCell.backface !== cell.backface) {
+                  const neighbor = mask[getMaskIndex(i + k, j + h, dimU)];
+                  if (!neighbor || neighbor.voxel !== cell.voxel || neighbor.backface !== cell.backface) {
                     break outer;
                   }
                 }
               }
 
+              // Posición inicial para el quad
               x[u] = i;
               x[v] = j;
               const pos = [x[0], x[1], x[2]];
@@ -180,7 +187,6 @@ export class Chunk {
               du[u] = w;
               dv[v] = h;
 
-              // Generar los 4 vértices del quad
               const vertices: [number, number, number][] = new Array(4);
               if (!cell.backface) {
                 vertices[0] = [pos[0], pos[1], pos[2]];
@@ -209,48 +215,37 @@ export class Chunk {
               }
 
               const voxelColor = Chunk.VOXEL_COLORS[cell.voxel] || new THREE.Color(0x000000);
-              const isWater = cell.voxel === VoxelType.WATER ? 1.0 : 0.0;
-
-              // Calcular UV basadas en la posición de cada vértice en el plano de la cara.
-              // Esto asegura que cada voxel se texturice con un tile de 1x1 independientemente de la fusión.
               const quadUVs: [number, number][] = [];
               for (let n = 0; n < 4; n++) {
-                const vx = vertices[n][0];
-                const vy = vertices[n][1];
-                const vz = vertices[n][2];
                 let uCoord = 0, vCoord = 0;
+                const [vx, vy, vz] = vertices[n];
                 if (d === 1) {
-                  // Para caras horizontales, usar X y Z
                   uCoord = vx;
                   vCoord = vz;
                 } else if (d === 0) {
-                  // Cara en X: usar Z y Y
                   uCoord = vz;
                   vCoord = vy;
                 } else if (d === 2) {
-                  // Cara en Z: usar X y Y
                   uCoord = vx;
                   vCoord = vy;
                 }
                 quadUVs.push([uCoord, vCoord]);
               }
 
-              // Añadir atributos para cada vértice
               for (let n = 0; n < 4; n++) {
-                positions.push(vertices[n][0], vertices[n][1], vertices[n][2]);
-                normals.push(normal[0], normal[1], normal[2]);
-                colors.push(voxelColor.r, voxelColor.g, voxelColor.b);
-                uvs.push(quadUVs[n][0], quadUVs[n][1]);
-                waterFlags.push(isWater);
+                positionsOpaque.push(vertices[n][0], vertices[n][1], vertices[n][2]);
+                normalsOpaque.push(normal[0], normal[1], normal[2]);
+                colorsOpaque.push(voxelColor.r, voxelColor.g, voxelColor.b);
+                uvsOpaque.push(quadUVs[n][0], quadUVs[n][1]);
               }
 
-              indices.push(vertexOffset, vertexOffset + 1, vertexOffset + 2);
-              indices.push(vertexOffset, vertexOffset + 2, vertexOffset + 3);
-              vertexOffset += 4;
+              indicesOpaque.push(vertexOffsetOpaque, vertexOffsetOpaque + 1, vertexOffsetOpaque + 2);
+              indicesOpaque.push(vertexOffsetOpaque, vertexOffsetOpaque + 2, vertexOffsetOpaque + 3);
+              vertexOffsetOpaque += 4;
 
               for (let l = 0; l < h; l++) {
                 for (let k = 0; k < w; k++) {
-                  mask[i + k + (j + l) * dimU] = null;
+                  mask[getMaskIndex(i + k, j + l, dimU)] = null;
                 }
               }
               i += w;
@@ -262,81 +257,168 @@ export class Chunk {
       }
     }
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    geometry.setAttribute('isWater', new THREE.Float32BufferAttribute(waterFlags, 1));
-    geometry.setIndex(indices);
+    //WATER
+    const positionsWater: number[] = [];
+    const indicesWater: number[] = [];
+    const colorsWater: number[] = [];
+    const normalsWater: number[] = [];
+    const uvsWater: number[] = [];
+    let vertexOffsetWater = 0;
 
-    const material = new THREE.MeshPhongMaterial({
+    for (let y = 0; y < dims[1]; y++) {
+      // Creamos una máscara 2D para X y Z
+      // Si mask[x + z*size] == true => hay agua en (x,y,z) y arriba no es agua
+      const mask = new Array(this.size * this.size).fill(false);
+
+      // Llenar la máscara
+      for (let z = 0; z < this.size; z++) {
+        for (let x = 0; x < this.size; x++) {
+          const voxel = this.getVoxel(x, y, z);
+          const above = (y + 1 < dims[1]) ? this.getVoxel(x, y + 1, z) : VoxelType.AIR;
+          if (voxel === VoxelType.WATER && above !== VoxelType.WATER) {
+            mask[x + z * this.size] = true;
+          }
+        }
+      }
+
+      // Aplicar Greedy Meshing en la máscara 2D (X,Z)
+      let z = 0;
+      while (z < this.size) {
+        let x = 0;
+        while (x < this.size) {
+          const idx = x + z * this.size;
+          if (mask[idx]) {
+            // Encontrar la anchura w
+            let w = 1;
+            while (x + w < this.size && mask[idx + w]) {
+              w++;
+            }
+            // Encontrar la altura h
+            let h = 1;
+            outer: for (; z + h < this.size; h++) {
+              for (let k = 0; k < w; k++) {
+                if (!mask[(x + k) + (z + h) * this.size]) {
+                  break outer;
+                }
+              }
+            }
+
+            // Tenemos un rectángulo w x h en (x,z)
+            // Generamos un quad (x, y+1, z) => (x+w, y+1, z+h)
+            const x0 = x;
+            const z0 = z;
+            const x1 = x + w;
+            const z1 = z + h;
+
+            // Construir los 4 vértices
+            const quadVerts = [
+              new THREE.Vector3(x0, y + 1, z0),
+              new THREE.Vector3(x1, y + 1, z0),
+              new THREE.Vector3(x1, y + 1, z1),
+              new THREE.Vector3(x0, y + 1, z1)
+            ];
+
+            // Desplazar a coordenadas globales
+            for (let v = 0; v < 4; v++) {
+              quadVerts[v].x += this.x * this.size;
+              quadVerts[v].z += this.z * this.size;
+
+              positionsWater.push(quadVerts[v].x, quadVerts[v].y, quadVerts[v].z);
+              // Normal superior => (0,1,0)
+              normalsWater.push(0, 1, 0);
+
+              // Color de agua
+              const waterColor = Chunk.VOXEL_COLORS[VoxelType.WATER];
+              colorsWater.push(waterColor.r, waterColor.g, waterColor.b);
+            }
+
+            // UVs: se puede mapear en función de w, h, etc.
+            // (aquí un ejemplo simple)
+            uvsWater.push(0, 0);
+            uvsWater.push(w, 0);
+            uvsWater.push(w, h);
+            uvsWater.push(0, h);
+
+            // Dos triángulos
+            indicesWater.push(
+              vertexOffsetWater,
+              vertexOffsetWater + 1,
+              vertexOffsetWater + 2
+            );
+            indicesWater.push(
+              vertexOffsetWater,
+              vertexOffsetWater + 2,
+              vertexOffsetWater + 3
+            );
+            vertexOffsetWater += 4;
+
+            // Limpiar la máscara en esa zona
+            for (let zz = 0; zz < h; zz++) {
+              for (let xx = 0; xx < w; xx++) {
+                mask[(x + xx) + (z + zz) * this.size] = false;
+              }
+            }
+            x += w; // Saltamos
+          } else {
+            x++;
+          }
+        }
+        z++;
+      }
+    }
+
+    // ================================================================
+    // COMBINAR GEOMETRÍAS OPACA Y DE AGUA EN UN SOLO BUFFER
+    // ================================================================
+    const opaqueVertexCount = vertexOffsetOpaque;
+    // Ajustar índices del agua
+    const indicesWaterAdjusted = indicesWater.map(idx => idx + opaqueVertexCount);
+
+    const positions = positionsOpaque.concat(positionsWater);
+    const normals = normalsOpaque.concat(normalsWater);
+    const colors = colorsOpaque.concat(colorsWater);
+    const uvs = uvsOpaque.concat(uvsWater);
+    const indices = indicesOpaque.concat(indicesWaterAdjusted);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3).setUsage(THREE.StaticDrawUsage));
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3).setUsage(THREE.StaticDrawUsage));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3).setUsage(THREE.StaticDrawUsage));
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2).setUsage(THREE.StaticDrawUsage));
+    geometry.setIndex(indices);
+    geometry.computeBoundingSphere();
+
+    geometry.addGroup(0, indicesOpaque.length, 0);
+    geometry.addGroup(indicesOpaque.length, indicesWaterAdjusted.length, 1);
+
+    const opaqueMaterial = new THREE.MeshPhongMaterial({
       vertexColors: true,
       map: Chunk.proceduralTexture,
       side: THREE.FrontSide,
-      transparent: true
+      transparent: false
     });
-    // Asegúrate de que el mapa tenga wrap en ambos ejes para repetir la textura
-    if (material.map) {
-      material.map.wrapS = THREE.RepeatWrapping;
-      material.map.wrapT = THREE.RepeatWrapping;
+    if (opaqueMaterial.map) {
+      opaqueMaterial.map.wrapS = THREE.RepeatWrapping;
+      opaqueMaterial.map.wrapT = THREE.RepeatWrapping;
     }
 
-    material.onBeforeCompile = (shader) => {
-      shader.uniforms.uTime = { value: 0.0 };
+    const waterMaterial = new THREE.MeshPhongMaterial({
+      vertexColors: true,
+      map: Chunk.proceduralTexture,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.75
+    });
+    if (waterMaterial.map) {
+      waterMaterial.map.wrapS = THREE.RepeatWrapping;
+      waterMaterial.map.wrapT = THREE.RepeatWrapping;
+    }
 
-      shader.vertexShader = `
-        uniform float uTime;
-        attribute float isWater;
-        varying float vIsWater;
-      ` + shader.vertexShader;
-
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <uv_vertex>',
-        `#include <uv_vertex>
-         if(isWater > 0.5) {
-           vec4 worldPos = modelMatrix * vec4( position, 1.0 );
-           vUv = worldPos.xz * 0.1;
-         }`
-      );
-
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-         if(isWater > 0.5) {
-           vec4 worldPos = modelMatrix * vec4( position, 1.0 );
-           transformed.y += sin(worldPos.x * 0.1 + uTime * 3.0) * 0.1;
-         }`
-      );
-
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <color_vertex>',
-        `#include <color_vertex>
-         vIsWater = isWater;
-         `
-      );
-
-      shader.fragmentShader = `
-        uniform float uTime;
-        varying float vIsWater;
-      ` + shader.fragmentShader;
-
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <dithering_fragment>',
-        `#include <dithering_fragment>
-         if(vIsWater > 0.5){
-           gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.0, 0.5, 1.0), 0.1);
-         }`
-      );
-
-      (material as any).userData.shader = shader;
-    };
-
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    const mesh = new THREE.Mesh(geometry, [opaqueMaterial, waterMaterial]);
     return mesh;
   }
+
+
 
   public updateVoxel(localX: number, y: number, localZ: number, newType: VoxelType): void {
     if (

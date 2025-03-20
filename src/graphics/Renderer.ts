@@ -23,6 +23,7 @@ export class Renderer {
   public domElement: HTMLCanvasElement;
   public ambientLight: THREE.AmbientLight;
   public directionalLight: THREE.DirectionalLight;
+  public waterShader: ShaderPass;
 
   public dayNightConfig: DayNightConfig = {
     dayBackground: new THREE.Color(0x6FA8DC),
@@ -66,9 +67,44 @@ export class Renderer {
     #endif
     `;
 
+    const UnderwaterShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        tint: { value: new THREE.Vector3(0.0, 0.2, 0.6) },
+        contrast: { value: 0.8 },
+        brightness: { value: 0.9 }
+      },
+      vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+      fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    uniform vec3 tint;
+    uniform float contrast;
+    uniform float brightness;
+    varying vec2 vUv;
+    
+    void main() {
+      vec4 color = texture2D(tDiffuse, vUv);
+      
+      // Ajustar contraste y brillo:
+      color.rgb = ((color.rgb - 0.5) * contrast + 0.5) * brightness;
+      
+      // Aplicar tinte azul:
+      color.rgb *= tint;
+      
+      gl_FragColor = color;
+    }
+  `
+    };
+
     this.scene = new THREE.Scene();
     this.scene.background = this.dayNightConfig.dayBackground.clone();
-    this.scene.fog = new THREE.Fog(this.scene.background.clone(), 60, 150);
+    this.scene.fog = new THREE.Fog(this.scene.background.clone(), 150, 200);
 
     this.camera = new THREE.PerspectiveCamera(
       60,
@@ -88,7 +124,7 @@ export class Renderer {
 
     this.directionalLight = new THREE.DirectionalLight(0xffffff, this.dayNightConfig.dayDirectional);
     this.directionalLight.position.set(500, 1000, 500);
-    this.directionalLight.castShadow = true;
+    //this.directionalLight.castShadow = true;
     this.scene.add(this.directionalLight);
 
     this.composer = new EffectComposer(this.renderer);
@@ -98,6 +134,10 @@ export class Renderer {
     this.fxaaPass = new ShaderPass(FXAAShader);
     this.fxaaPass.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
     this.composer.addPass(this.fxaaPass);
+
+    this.waterShader = new ShaderPass(UnderwaterShader);
+    this.waterShader.enabled = false;
+    this.composer.addPass(this.waterShader);
 
     window.addEventListener('resize', this.onWindowResize.bind(this), false);
   }

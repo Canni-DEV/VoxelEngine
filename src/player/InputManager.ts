@@ -54,6 +54,8 @@ export class InputManager {
       voxelCoords.z
     );
     if (!targetData) return;
+    if (targetData.chunk.terrainData[targetData.localX][voxelCoords.y][targetData.localZ] == VoxelType.BEDROCK)
+      return;
     targetData.chunk.updateVoxel(targetData.localX, voxelCoords.y, targetData.localZ, VoxelType.AIR);
   }
 
@@ -70,6 +72,8 @@ export class InputManager {
     if (!targetData) return;
 
     if (event.button === 0) { // Botón izquierdo: eliminar voxel
+      if (targetData.chunk.terrainData[targetData.localX][voxelCoords.y][targetData.localZ] == VoxelType.BEDROCK)
+        return;
       targetData.chunk.updateVoxel(targetData.localX, voxelCoords.y, targetData.localZ, VoxelType.AIR);
     } else if (event.button === 2) { // Botón derecho: agregar voxel
       const faceNormal = intersection.face?.normal.clone();
