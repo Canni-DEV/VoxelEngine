@@ -11,7 +11,7 @@ async function init() {
   const renderer = new Renderer();
   const chunkManager = new ChunkManager(renderer.scene)
   const world = new World(renderer, chunkManager);
-  const player = new Player(renderer.camera, world);
+  const player = new Player(renderer, world);
   const inputManager = new InputManager(renderer.camera, renderer.scene, chunkManager);
   const controls = new Controls(player, renderer.domElement, inputManager);
   const audioManager = new AudioManager();

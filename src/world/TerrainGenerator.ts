@@ -11,11 +11,15 @@ export enum VoxelType {
   SNOW,
   TRUNK,
   LEAVES,
-  CLOUD
+  LEAVES_AUTUMN,
+  LEAVES_YOUNG,
+  LEAVES_CHERRY,
+  CLOUD,
+  BEDROCK
 }
 
 export class TerrainGenerator {
-  private readonly maxHeight: number = 512;
+  private readonly maxHeight: number = 256;
   private readonly seaLevel: number = 48;
 
   private readonly baseFrequency: number = 0.001;
@@ -44,19 +48,17 @@ export class TerrainGenerator {
   private readonly maxCaveLength: number = 150;
   private readonly baseCaveRadius: number = 2;
 
-  // Nuevos parámetros configurables (pueden inicializarse en el constructor o ser modificables)
   private octaves: number = 4;
   private persistence: number = 3;
   private lacunarity: number = 2.3;
 
-  // Definición de rangos de altura:
-  private oceanFloorHeight: number = 20;         // Altura mínima para fondo oceánico
-  private prairieMaxHeight: number = 80;          // Aproximadamente seaLevel (64) + 50 bloques para praderas
+  private oceanFloorHeight: number = 20;
+  private prairieMaxHeight: number = 80;
 
 
   private noiseGen: SimplexNoiseGenerator;
 
-  constructor(seed: string) {
+  constructor(seed: string | null) {
     this.noiseGen = new SimplexNoiseGenerator(seed);
   }
 
@@ -137,7 +139,8 @@ export class TerrainGenerator {
     for (let x = 0; x < size; x++) {
       for (let z = 0; z < size; z++) {
         const { height } = heightMap[x][z];
-        for (let y = 0; y <= height; y++) {
+        data[x][0][z] = VoxelType.BEDROCK;
+        for (let y = 1; y <= height; y++) {
           data[x][y][z] = VoxelType.STONE;
         }
       }
@@ -156,6 +159,32 @@ export class TerrainGenerator {
       }
     }
   }
+
+  private clouds(data: VoxelType[][][], chunkX: number, chunkZ: number, size: number): void {
+    const cloudFrequency = 0.1;
+    const quantStep = 0.2;
+    const threshold = 0.6;
+
+    for (let x = 0; x < size; x++) {
+      for (let z = 0; z < size; z++) {
+        // Convertir a coordenadas globales
+        const worldX = chunkX * size + x;
+        const worldZ = chunkZ * size + z;
+
+        // Calcular el ruido para esta posición con la frecuencia alta
+        let noiseVal = this.noiseGen.noise(worldX * cloudFrequency, worldZ * cloudFrequency);
+        // Cuantizamos el valor para que sea "cuadriculado"
+        noiseVal = Math.floor(noiseVal / quantStep) * quantStep;
+
+        // Si el valor supera el umbral, se asigna un voxel de nube en la capa superior
+        if (noiseVal > threshold) {
+          // Suponiendo que queremos las nubes en la última capa (podrías ajustar la altura)
+          data[x][this.maxHeight - 1][z] = VoxelType.CLOUD;
+        }
+      }
+    }
+  }
+
 
   private getSurfaceDecoration(worldX: number, worldZ: number, height: number, temperature: number, rainfall: number)
     : { top: VoxelType, filler: VoxelType, thickness: number } {
@@ -219,8 +248,9 @@ export class TerrainGenerator {
     this.terrainShaping(data, heightMap, size);
     this.waterFilling(data, heightMap, size);
     this.surfaceDecoration(data, heightMap, chunkX, chunkZ, size);
-    this.spawnTrees(data, size);
+    this.spawnTrees(data, size, chunkX, chunkZ);
     this.carveCaves(data, size, chunkX, chunkZ, heightMap);
+    //this.clouds(data,chunkX,chunkZ,size);
     return data;
   }
 
@@ -267,7 +297,7 @@ export class TerrainGenerator {
                 const nx = xi + dx;
                 const ny = yi + dy;
                 const nz = zi + dz;
-                if (nx >= 0 && nx < size && ny >= 0 && ny < this.maxHeight && nz >= 0 && nz < size && data[nx][ny][nz] !== VoxelType.WATER) {
+                if (nx >= 0 && nx < size && ny >= 0 && ny < this.maxHeight && nz >= 0 && nz < size && data[nx][ny][nz] !== VoxelType.WATER && data[nx][ny][nz] !== VoxelType.BEDROCK) {
                   data[nx][ny][nz] = VoxelType.AIR;
                 }
               }
@@ -285,7 +315,7 @@ export class TerrainGenerator {
     }
   }
 
-  private spawnTrees(data: VoxelType[][][], size: number): void {
+  private spawnTrees(data: VoxelType[][][], size: number, chunkX: number, chunkZ: number): void {
     for (let x = 0; x < size; x++) {
       for (let z = 0; z < size; z++) {
         let topY = -1;
@@ -298,10 +328,11 @@ export class TerrainGenerator {
         if (topY === -1) continue;
         if (data[x][topY][z] !== VoxelType.GRASS) continue;
         const treeNoise = this.noiseGen.noise(x * 1000 * topY, z * 1000 * topY);
+        const treeNoiseType = this.noiseGen.noise(chunkX * 0.01 + 5000, chunkZ * 0.01 + 5000);
         if (treeNoise > this.treeFrequency) continue;
 
         const trunkNoise = this.noiseGen.noise(x * 5000 * topY, z * 5000 * topY);
-        const trunkHeight = Math.floor(this.mapNoise(trunkNoise, 5, 11));
+        const trunkHeight = Math.floor(this.mapNoise(trunkNoise, 4, 11));
         if (topY + trunkHeight + 2 >= this.maxHeight) continue;
         for (let y = topY + 1; y <= topY + trunkHeight; y++) {
           data[x][y][z] = VoxelType.TRUNK;
@@ -319,6 +350,18 @@ export class TerrainGenerator {
               const leafNoise = this.noiseGen.noise(dx * 3000 * topY, dz * 3000 * topY);
               if (leafNoise < 0.15) continue;
               if (data[nx][canopyY][nz] === VoxelType.AIR) {
+                if (trunkHeight < 6) {
+                  data[nx][canopyY][nz] = VoxelType.LEAVES_YOUNG;
+                  continue;
+                }
+                if (trunkHeight > 9) {
+                  data[nx][canopyY][nz] = VoxelType.LEAVES_AUTUMN;
+                  continue;
+                }
+                if (treeNoiseType < 0.12 && treeNoiseType > 0.10) {
+                  data[nx][canopyY][nz] = VoxelType.LEAVES_CHERRY;
+                  continue;
+                }
                 data[nx][canopyY][nz] = VoxelType.LEAVES;
               }
             }

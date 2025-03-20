@@ -21,8 +21,7 @@ export class ChunkManager {
     this.chunks = new Map();
     this.modifiedChunks = new Map();
     const url = new URL(location.href);
-    console.log(url.searchParams.get("seed"))
-    this.terrainGenerator = new TerrainGenerator(url.searchParams.get("seed") || "CanniUCA");
+    this.terrainGenerator = new TerrainGenerator(url.searchParams.get("seed"));
   }
 
   public update(playerPosition: THREE.Vector3) {
@@ -140,7 +139,7 @@ export class ChunkManager {
     const startX = Math.floor(position.x);
     const startY = Math.floor(position.y);
     const startZ = Math.floor(position.z);
-  
+
     const maxRadius = 100; // Radio máximo de búsqueda en voxeles.
     let bestCandidate: THREE.Vector3 | null = null;
     let bestDistSq = Infinity;
@@ -175,19 +174,19 @@ export class ChunkManager {
     // Si no se encontró candidato, se retorna la posición de inicio.
     return new THREE.Vector3(startX, startY, startZ);
   }
-  
+
   private isValidCandidate(x: number, y: number, z: number): boolean {
     return this.isVoxelFree(x, y, z, VoxelType.AIR) &&
-           this.isVoxelFree(x, y + 1, z, VoxelType.AIR) &&
-           this.isVoxelFree(x + 1, y, z, VoxelType.AIR) &&
-           this.isVoxelFree(x - 1, y, z, VoxelType.AIR) &&
-           this.isVoxelFree(x, y, z + 1, VoxelType.AIR) &&
-           this.isVoxelFree(x, y, z - 1, VoxelType.AIR) &&
-           this.isVoxelFree(x + 1, y, z + 1, VoxelType.AIR) &&
-           this.isVoxelFree(x - 1, y, z - 1, VoxelType.AIR) &&
-           this.isVoxelFree(x - 1, y, z - 1, VoxelType.AIR) &&
-           this.isVoxelFree(x + 1, y, z + 1, VoxelType.AIR) &&
-           this.isVoxelFree(x, y - 1, z, VoxelType.GRASS);
+      this.isVoxelFree(x, y + 1, z, VoxelType.AIR) &&
+      this.isVoxelFree(x + 1, y, z, VoxelType.AIR) &&
+      this.isVoxelFree(x - 1, y, z, VoxelType.AIR) &&
+      this.isVoxelFree(x, y, z + 1, VoxelType.AIR) &&
+      this.isVoxelFree(x, y, z - 1, VoxelType.AIR) &&
+      this.isVoxelFree(x + 1, y, z + 1, VoxelType.AIR) &&
+      this.isVoxelFree(x - 1, y, z - 1, VoxelType.AIR) &&
+      this.isVoxelFree(x - 1, y, z - 1, VoxelType.AIR) &&
+      this.isVoxelFree(x + 1, y, z + 1, VoxelType.AIR) &&
+      this.isVoxelFree(x, y - 1, z, VoxelType.GRASS);
   }
 
   private isVoxelFree(globalX: number, globalY: number, globalZ: number, voxelType: VoxelType): boolean {

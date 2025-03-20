@@ -22,8 +22,7 @@ export class Controls {
   private yaw = 0;
   private pitch = 0;
 
-  private speed = 5;
-  private verticalSpeed = 5;
+  private speed = 6;
   private readonly jumpSpeed = 0.14;
   private readonly sensitivity = 0.002;
 
@@ -83,10 +82,8 @@ export class Controls {
         this.player.flying = !this.player.flying;
         if (this.player.flying) {
           this.speed = 30;
-          this.verticalSpeed = 30;
         } else {
           this.speed = 5;
-          this.verticalSpeed = 5;
         }
         this.player.velocity.y = 0;
         break;
@@ -304,11 +301,11 @@ export class Controls {
     if (this.moveLeft) this.player.position.addScaledVector(right, this.speed * delta);
     if (this.moveRight) this.player.position.addScaledVector(right, -this.speed * delta);
     if (this.player.flying) {
-      if (this.moveUp) this.player.position.y += this.verticalSpeed * delta;
-      if (this.moveDown) this.player.position.y -= this.verticalSpeed * delta;
-    }else{
-      if (this.jump){
-          this.player.velocity.y = this.jumpSpeed;
+      if (this.moveUp) this.player.position.y += this.speed * delta;
+      if (this.moveDown) this.player.position.y -= this.speed * delta;
+    } else {
+      if (this.jump && (this.player.onFloor || this.player.onWater)) {
+        this.player.velocity.y = this.jumpSpeed;
         this.jump = false;
       }
     }
