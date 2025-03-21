@@ -9,32 +9,38 @@ import { ChunkManager } from './world/ChunkManager';
 
 async function init() {
   const renderer = new Renderer();
-  const chunkManager = new ChunkManager(renderer.scene)
+  const chunkManager = new ChunkManager(renderer.scene);
   const world = new World(renderer, chunkManager);
   const player = new Player(renderer, world);
   const inputManager = new InputManager(renderer.camera, renderer.scene, chunkManager);
   const controls = new Controls(player, renderer.domElement, inputManager);
   const audioManager = new AudioManager();
   const uiManager = new UIManager();
+
   let lastTime = performance.now();
-  let lastRenderTime = 0;
 
   function animate() {
+    requestAnimationFrame(animate);
+
     const currentTime = performance.now();
-    const delta = (currentTime - lastTime) / 1000;
+    // Calcular delta en segundos y limitarlo para evitar grandes saltos en la simulación
+    let delta = (currentTime - lastTime) / 1000;
+    delta = Math.min(delta, 0.1);
     lastTime = currentTime;
 
-    requestAnimationFrame(animate);
+    // Procesar entrada
     controls.update(delta);
-    player.update(delta);
+    // Actualizar el mundo primero para disponer de chunks actualizados
     world.update(delta, player.position);
+    // Actualizar la física del jugador, que dependerá de datos actualizados en el mundo
+    player.update(delta);
 
-    if (currentTime - lastRenderTime >= 1000 / 60) {
-      renderer.render((currentTime - lastRenderTime) / 1000);
-      lastRenderTime = currentTime;
-    }
+    // Renderizar la escena; se puede pasar delta para efectos que dependan del tiempo
+    renderer.render(delta);
+    // Actualizar la interfaz (UI)
     uiManager.update(currentTime);
   }
+
   animate();
 }
 
