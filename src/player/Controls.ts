@@ -23,8 +23,8 @@ export class Controls {
   private pitch = 0;
 
   private speed = 6;
-  private readonly jumpSpeed = 0.14;
-  private readonly sensitivity = 0.002;
+  private readonly jumpSpeed = 8;
+  private readonly sensitivity = 0.001;
 
   private isTouching = false;
   private lastTouchX = 0;
