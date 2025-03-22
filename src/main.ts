@@ -29,7 +29,7 @@ async function init() {
     let delta = (now - lastTime) / 1000; 
     lastTime = now;
 
-    delta = Math.min(delta, 0.25);
+    delta = Math.min(delta, 0.05);
     accumulator += delta;
     controls.update(delta);
     player.update(delta);
