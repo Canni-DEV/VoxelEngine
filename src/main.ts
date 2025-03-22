@@ -18,27 +18,29 @@ async function init() {
   const uiManager = new UIManager();
 
   let lastTime = performance.now();
+  let accumulator = 0;
+  // Fijamos un timestep fijo: 1/20 s (20 actualizaciones por segundo)
+  const fixedTimeStep = 1 / 20; // 0.05 segundos
 
   function animate() {
     requestAnimationFrame(animate);
 
-    const currentTime = performance.now();
-    // Calcular delta en segundos y limitarlo para evitar grandes saltos en la simulación
-    let delta = (currentTime - lastTime) / 1000;
-    delta = Math.min(delta, 0.1);
-    lastTime = currentTime;
+    const now = performance.now();
+    let delta = (now - lastTime) / 1000; 
+    lastTime = now;
 
-    // Procesar entrada
+    delta = Math.min(delta, 0.25);
+    accumulator += delta;
     controls.update(delta);
-    // Actualizar el mundo primero para disponer de chunks actualizados
-    world.update(delta, player.position);
-    // Actualizar la física del jugador, que dependerá de datos actualizados en el mundo
     player.update(delta);
+    while (accumulator >= fixedTimeStep) {    
+      world.update(fixedTimeStep, player.position);    
+      accumulator -= fixedTimeStep;
+    }
 
-    // Renderizar la escena; se puede pasar delta para efectos que dependan del tiempo
-    renderer.render(delta);
-    // Actualizar la interfaz (UI)
-    uiManager.update(currentTime);
+    const alpha = accumulator / fixedTimeStep;
+    renderer.render(alpha);
+    uiManager.update(now);
   }
 
   animate();
