@@ -29,7 +29,7 @@ export class ChunkManager {
     const currentChunkX = Math.floor(playerPosition.x / this.chunkSize);
     const currentChunkZ = Math.floor(playerPosition.z / this.chunkSize);
     this.deleteChunks(currentChunkX, currentChunkZ);
-    this.SetChunksToLoad(currentChunkX, currentChunkZ);
+    this.setChunksToLoad(currentChunkX, currentChunkZ);
 
     if (--this.loadCounter <= 0) {
       this.loadNextChunk();
@@ -68,7 +68,7 @@ export class ChunkManager {
     });
   }
 
-  private SetChunksToLoad(currentChunkX: number, currentChunkZ: number) {
+  private setChunksToLoad(currentChunkX: number, currentChunkZ: number) {
     if (this.loadingChunks) return;
 
     this.loadingChunksKeys.length = 0;
