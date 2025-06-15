@@ -21,21 +21,20 @@ export class MobManager {
     this.world.scene.add(zombie.mesh);
   }
 
-  private spawnNightMobs() {
+  private spawnNightMobs(playerPos: THREE.Vector3) {
     const count = 5;
     for (let i = 0; i < count; i++) {
-      const pos = this.findSpawnPosition();
+      const pos = this.findSpawnPositionNearPlayer(playerPos);
       if (pos) this.spawnZombie(pos);
     }
   }
 
-  private findSpawnPosition(): THREE.Vector3 | null {
-    const chunks = this.world.getLoadedChunks();
-    if (chunks.length === 0) return null;
+  private findSpawnPositionNearPlayer(playerPos: THREE.Vector3): THREE.Vector3 | null {
     for (let attempt = 0; attempt < 20; attempt++) {
-      const chunk = chunks[Math.floor(Math.random() * chunks.length)];
-      const x = chunk.x * chunk.size + Math.floor(Math.random() * chunk.size);
-      const z = chunk.z * chunk.size + Math.floor(Math.random() * chunk.size);
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 15 + Math.random() * 10; // alrededor de 20 bloques
+      const x = Math.floor(playerPos.x + Math.cos(angle) * distance);
+      const z = Math.floor(playerPos.z + Math.sin(angle) * distance);
       for (let y = 255; y > 0; y--) {
         const type = this.chunkManager.getVoxelType(x, y, z);
         if (type === null || type === VoxelType.AIR) continue;
@@ -63,7 +62,7 @@ export class MobManager {
     const isNight = this.world.isNight();
     if (isNight) {
       if (!this.spawned) {
-        this.spawnNightMobs();
+        this.spawnNightMobs(playerPosition);
         this.spawned = true;
       }
     } else {
