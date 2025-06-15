@@ -71,6 +71,7 @@ export class Pathfinder {
 
     const open: Node[] = [startNode];
     const cost = new Map<string, number>();
+    const closed = new Set<string>();
     cost.set(this.key(sx, sy, sz), 0);
     let targetNode: Node | null = null;
 
@@ -89,6 +90,12 @@ export class Pathfinder {
       }
       const current = open.splice(currentIndex, 1)[0];
 
+      const cKey = this.key(current.pos.x, current.pos.y, current.pos.z);
+      if (closed.has(cKey)) {
+        continue;
+      }
+      closed.add(cKey);
+
       if (current.pos.x === gx && current.pos.y === gy && current.pos.z === gz) {
         targetNode = current;
         break;
@@ -103,6 +110,7 @@ export class Pathfinder {
           if (!this.isWalkable(nx, ny, nz, true)) continue;
 
           const k = this.key(nx, ny, nz);
+          if (closed.has(k)) continue;
           const newG = current.g + 1;
           const existing = cost.get(k);
           if (existing !== undefined && existing <= newG) continue;
