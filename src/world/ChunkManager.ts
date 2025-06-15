@@ -176,6 +176,9 @@ export class ChunkManager {
   }
 
   private isValidCandidate(x: number, y: number, z: number): boolean {
+    // Verifica que los voxeles adyacentes estén libres. Esto incluye las
+    // cuatro diagonales, asegurando suficiente espacio alrededor del punto de
+    // spawn potencial.
     return this.isVoxelFree(x, y, z, VoxelType.AIR) &&
       this.isVoxelFree(x, y + 1, z, VoxelType.AIR) &&
       this.isVoxelFree(x + 1, y, z, VoxelType.AIR) &&
@@ -183,9 +186,9 @@ export class ChunkManager {
       this.isVoxelFree(x, y, z + 1, VoxelType.AIR) &&
       this.isVoxelFree(x, y, z - 1, VoxelType.AIR) &&
       this.isVoxelFree(x + 1, y, z + 1, VoxelType.AIR) &&
+      this.isVoxelFree(x + 1, y, z - 1, VoxelType.AIR) &&
+      this.isVoxelFree(x - 1, y, z + 1, VoxelType.AIR) &&
       this.isVoxelFree(x - 1, y, z - 1, VoxelType.AIR) &&
-      this.isVoxelFree(x - 1, y, z - 1, VoxelType.AIR) &&
-      this.isVoxelFree(x + 1, y, z + 1, VoxelType.AIR) &&
       this.isVoxelFree(x, y - 1, z, VoxelType.GRASS);
   }
 
