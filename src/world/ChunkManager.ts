@@ -204,4 +204,16 @@ export class ChunkManager {
     if (globalY < 0 || globalY >= chunk.terrainData[localX].length) return false;
     return chunk.terrainData[localX][globalY][localZ] === voxelType;
   }
+
+  public getVoxelType(globalX: number, globalY: number, globalZ: number): VoxelType | null {
+    const chunkX = Math.floor(globalX / this.chunkSize);
+    const chunkZ = Math.floor(globalZ / this.chunkSize);
+    const chunk = this.getChunkAt(chunkX, chunkZ);
+    if (!chunk) return null;
+    const localX = globalX - chunk.x * this.chunkSize;
+    const localZ = globalZ - chunk.z * this.chunkSize;
+    if (localX < 0 || localX >= chunk.size || localZ < 0 || localZ >= chunk.size) return null;
+    if (globalY < 0 || globalY >= chunk.terrainData[localX].length) return null;
+    return chunk.terrainData[localX][globalY][localZ];
+  }
 }
