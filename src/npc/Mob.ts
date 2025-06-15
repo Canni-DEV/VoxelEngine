@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { ChunkManager } from '../world/ChunkManager';
 import { PathfindingManager } from './PathfindingManager';
-import { processCollisionsAndEnvironment } from '../world/Physics';
 import { VoxelType } from '../world/TerrainGenerator';
 
 export abstract class Mob {
@@ -19,10 +18,9 @@ export abstract class Mob {
   protected timeSinceLastPath: number = 0;
   protected recomputeInterval: number = 0.5;
 
-  protected readonly colliderHalfWidth: number = 0.3;
-  protected readonly colliderHeight: number = 1.6;
-  protected readonly epsilon: number = 0.001;
-  protected tempVec: THREE.Vector3 = new THREE.Vector3();
+  // Basic physics parameters
+  protected readonly gravity: number = 25;
+  protected readonly maxVerticalVelocity: number = 50;
 
   constructor(position: THREE.Vector3, chunkManager: ChunkManager, pathManager: PathfindingManager) {
     this.position = position.clone();
@@ -82,23 +80,15 @@ export abstract class Mob {
         const nz = Math.floor(next.z);
 
         const walkableStep =
-          ground !== null && ground !== VoxelType.AIR && head === VoxelType.AIR && above === VoxelType.AIR;
+          ground !== null &&
+          ground !== VoxelType.AIR &&
+          head === VoxelType.AIR &&
+          above === VoxelType.AIR;
 
         if (walkableStep && this.pathManager.isWalkable(nx, ny, nz)) {
+          // Pathfinding already ensures there are no obstacles ahead.
           this.velocity.copy(step);
           this.position.copy(newPos);
-          const res = processCollisionsAndEnvironment(
-            this.position,
-            this.velocity,
-            this.chunkManager.getLoadedChunks(),
-            null,
-            this.colliderHalfWidth,
-            this.colliderHeight,
-            this.epsilon,
-            this.tempVec
-          );
-          this.onFloor = res.onFloor;
-          this.onWater = res.onWater;
           this.mesh.position.copy(this.position);
         } else {
           // force a new path on next frame
@@ -107,5 +97,34 @@ export abstract class Mob {
         }
       }
     }
+
+    // Simple ground verification to simulate gravity
+    const below = this.chunkManager.getVoxelType(
+      Math.floor(this.position.x),
+      Math.floor(this.position.y) - 1,
+      Math.floor(this.position.z)
+    );
+
+    if (below === null || below === VoxelType.AIR) {
+      this.onFloor = false;
+      this.velocity.y -= this.gravity * delta;
+      this.velocity.y = Math.max(
+        Math.min(this.velocity.y, this.maxVerticalVelocity),
+        -this.maxVerticalVelocity
+      );
+      this.position.y += this.velocity.y * delta;
+    } else {
+      this.onFloor = true;
+      this.velocity.y = 0;
+    }
+
+    this.onWater =
+      this.chunkManager.getVoxelType(
+        Math.floor(this.position.x),
+        Math.floor(this.position.y),
+        Math.floor(this.position.z)
+      ) === VoxelType.WATER;
+
+    this.mesh.position.copy(this.position);
   }
 }
