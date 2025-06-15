@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Chunk } from './Chunk';
 import { TerrainGenerator, VoxelType } from './TerrainGenerator';
+import { TerrainConfig } from './TerrainConfig';
 
 export class ChunkManager {
   private scene: THREE.Scene;
@@ -16,12 +17,12 @@ export class ChunkManager {
   private loadCounter: number = 2;
   private firstChunksLoaded: boolean = false;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, config: TerrainConfig = {}) {
     this.scene = scene;
     this.chunks = new Map();
     this.modifiedChunks = new Map();
     const url = new URL(location.href);
-    this.terrainGenerator = new TerrainGenerator(url.searchParams.get("seed"));
+    this.terrainGenerator = new TerrainGenerator(url.searchParams.get("seed"), config);
   }
 
   public update(playerPosition: THREE.Vector3) {
