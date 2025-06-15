@@ -6,7 +6,8 @@ export class Chunk {
   public z: number;
   public size: number;
   public mesh: THREE.Mesh;
-  public terrainData: VoxelType[][][];
+  public terrainData: Uint8Array;
+  public maxHeight: number;
   public modified: boolean = false;
 
   public static proceduralTexture: THREE.CanvasTexture = Chunk.generateProceduralTexture();
@@ -46,6 +47,7 @@ export class Chunk {
     this.x = x;
     this.z = z;
     this.size = size;
+    this.maxHeight = terrainGenerator.getMaxHeight();
     this.terrainData = terrainGenerator.generateChunk(x, z, size);
     this.mesh = this.createMesh();
     this.mesh.userData.chunk = this;
@@ -79,11 +81,15 @@ export class Chunk {
     return texture;
   }
 
-  private getVoxel(x: number, y: number, z: number): VoxelType {
-    if (x < 0 || x >= this.size || y < 0 || y >= this.terrainData[0].length || z < 0 || z >= this.size) {
+  public getVoxel(x: number, y: number, z: number): VoxelType {
+    if (x < 0 || x >= this.size || y < 0 || y >= this.maxHeight || z < 0 || z >= this.size) {
       return VoxelType.AIR;
     }
-    return this.terrainData[x][y][z];
+    return this.terrainData[this.index(x, y, z)];
+  }
+
+  private index(x: number, y: number, z: number): number {
+    return x * this.maxHeight * this.size + y * this.size + z;
   }
 
   private createMesh(): THREE.Mesh {
@@ -98,7 +104,7 @@ export class Chunk {
     let vertexOffsetOpaque = 0;
 
     // Dimensiones del chunk: [X, Y, Z]
-    const dims = [this.size, this.terrainData[0].length, this.size];
+    const dims = [this.size, this.maxHeight, this.size];
     const worldOffset = new THREE.Vector3(this.x * this.size, 0, this.z * this.size);
 
     // Función auxiliar para calcular el índice en la máscara 2D
@@ -427,11 +433,11 @@ export class Chunk {
       localZ < 0 ||
       localZ >= this.size ||
       y < 0 ||
-      y >= this.terrainData[0].length
+      y >= this.maxHeight
     ) {
       return;
     }
-    this.terrainData[localX][y][localZ] = newType;
+    this.terrainData[this.index(localX, y, localZ)] = newType;
     this.modified = true;
     this.rebuildMesh();
   }

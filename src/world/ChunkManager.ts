@@ -218,8 +218,8 @@ export class ChunkManager {
     const localX = globalX - chunk.x * this.chunkSize;
     const localZ = globalZ - chunk.z * this.chunkSize;
     if (localX < 0 || localX >= chunk.size || localZ < 0 || localZ >= chunk.size) return false;
-    if (globalY < 0 || globalY >= chunk.terrainData[localX].length) return false;
-    return chunk.terrainData[localX][globalY][localZ] === voxelType;
+    if (globalY < 0 || globalY >= chunk.maxHeight) return false;
+    return chunk.getVoxel(localX, globalY, localZ) === voxelType;
   }
 
   public getVoxelType(globalX: number, globalY: number, globalZ: number): VoxelType | null {
@@ -230,7 +230,7 @@ export class ChunkManager {
     const localX = globalX - chunk.x * this.chunkSize;
     const localZ = globalZ - chunk.z * this.chunkSize;
     if (localX < 0 || localX >= chunk.size || localZ < 0 || localZ >= chunk.size) return null;
-    if (globalY < 0 || globalY >= chunk.terrainData[localX].length) return null;
-    return chunk.terrainData[localX][globalY][localZ];
+    if (globalY < 0 || globalY >= chunk.maxHeight) return null;
+    return chunk.getVoxel(localX, globalY, localZ);
   }
 }
