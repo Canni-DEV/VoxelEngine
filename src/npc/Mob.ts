@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ChunkManager } from '../world/ChunkManager';
 import { Pathfinder } from './Pathfinder';
 import { processCollisionsAndEnvironment } from '../world/Physics';
+import { VoxelType } from '../world/TerrainGenerator';
 
 export abstract class Mob {
   public position: THREE.Vector3;
@@ -58,11 +59,22 @@ export abstract class Mob {
         const stepLength = Math.min(this.speed * delta, dist);
         const step = dir.multiplyScalar(stepLength);
         const newPos = this.position.clone().add(step);
+
+        const fx = Math.floor(newPos.x);
+        const fy = Math.floor(newPos.y);
+        const fz = Math.floor(newPos.z);
+        const ground = this.chunkManager.getVoxelType(fx, fy - 1, fz);
+        const head = this.chunkManager.getVoxelType(fx, fy, fz);
+        const above = this.chunkManager.getVoxelType(fx, fy + 1, fz);
+
         const nx = Math.floor(next.x);
         const ny = Math.floor(next.y);
         const nz = Math.floor(next.z);
 
-        if (this.pathfinder.isWalkable(nx, ny, nz)) {
+        const walkableStep =
+          ground !== null && ground !== VoxelType.AIR && head === VoxelType.AIR && above === VoxelType.AIR;
+
+        if (walkableStep && this.pathfinder.isWalkable(nx, ny, nz)) {
           this.velocity.copy(step);
           this.position.copy(newPos);
           const res = processCollisionsAndEnvironment(
@@ -80,7 +92,8 @@ export abstract class Mob {
           this.mesh.position.copy(this.position);
         } else {
           // force a new path on next frame
-          this.pathIndex = this.path.length;
+          this.path = [];
+          this.pathIndex = 0;
         }
       }
     }
