@@ -72,7 +72,7 @@ export function processCollisionsAndEnvironment(
 
   for (const chunk of chunks) {
     const chunkSize = chunk.size;
-    const maxHeight = chunk.terrainData[0].length;
+    const maxHeight = chunk.maxHeight;
     chunkMin.set(chunk.x * chunkSize, 0, chunk.z * chunkSize);
     chunkMax.set(
       chunk.x * chunkSize + chunkSize,
@@ -99,17 +99,17 @@ export function processCollisionsAndEnvironment(
         localZ >= 0 &&
         localZ < chunkSize
       ) {
-        const voxel = chunk.terrainData[localX][localY][localZ];
+        const voxel = chunk.getVoxel(localX, localY, localZ);
         if (voxel === VoxelType.WATER) {
           onWater = true;
-          if (chunk.terrainData[localX][Math.floor(footPos.y + 1.5)][localZ]) {
+          if (chunk.getVoxel(localX, Math.floor(footPos.y + 1.5), localZ) !== VoxelType.AIR) {
             waterShader = true;
           }
-        } else if (voxel !== 0) {
-          const voxelUp = chunk.terrainData[localX][localY + 1][localZ];
+        } else if (voxel !== VoxelType.AIR) {
+          const voxelUp = chunk.getVoxel(localX, localY + 1, localZ);
           if (voxelUp === VoxelType.WATER) {
             onWater = true;
-            if (chunk.terrainData[localX][Math.floor(footPos.y + 1.5)][localZ]) {
+            if (chunk.getVoxel(localX, Math.floor(footPos.y + 1.5), localZ) !== VoxelType.AIR) {
               waterShader = true;
             }
           }
@@ -130,7 +130,8 @@ export function processCollisionsAndEnvironment(
     for (let i = startI; i < endI; i++) {
       for (let j = startJ; j < endJ; j++) {
         for (let k = startK; k < endK; k++) {
-          if (chunk.terrainData[i][j][k] === 0 || chunk.terrainData[i][j][k] === VoxelType.WATER) continue;
+          const voxel = chunk.getVoxel(i, j, k);
+          if (voxel === VoxelType.AIR || voxel === VoxelType.WATER) continue;
 
           blockMin.set(
             chunk.x * chunkSize + i,
