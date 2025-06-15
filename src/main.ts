@@ -37,8 +37,6 @@ async function init() {
   const audioManager = new AudioManager();
   const uiManager = new UIManager();
 
-  world.spawnZombie(new THREE.Vector3(5, 50, 5));
-
   let lastTime = performance.now();
   let accumulator = 0;
   // Fijamos un timestep fijo: 1/20 s (20 actualizaciones por segundo)

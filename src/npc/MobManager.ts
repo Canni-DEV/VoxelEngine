@@ -1,0 +1,78 @@
+import * as THREE from 'three';
+import { Zombie } from './Zombie';
+import { World } from '../world/World';
+import { ChunkManager } from '../world/ChunkManager';
+import { VoxelType } from '../world/TerrainGenerator';
+
+export class MobManager {
+  private mobs: Zombie[] = [];
+  private world: World;
+  private chunkManager: ChunkManager;
+  private spawned: boolean = false;
+
+  constructor(world: World, chunkManager: ChunkManager) {
+    this.world = world;
+    this.chunkManager = chunkManager;
+  }
+
+  public spawnZombie(position: THREE.Vector3) {
+    const zombie = new Zombie(position, this.chunkManager);
+    this.mobs.push(zombie);
+    this.world.scene.add(zombie.mesh);
+  }
+
+  private spawnNightMobs() {
+    const count = 5;
+    for (let i = 0; i < count; i++) {
+      const pos = this.findSpawnPosition();
+      if (pos) this.spawnZombie(pos);
+    }
+  }
+
+  private findSpawnPosition(): THREE.Vector3 | null {
+    const chunks = this.world.getLoadedChunks();
+    if (chunks.length === 0) return null;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const chunk = chunks[Math.floor(Math.random() * chunks.length)];
+      const x = chunk.x * chunk.size + Math.floor(Math.random() * chunk.size);
+      const z = chunk.z * chunk.size + Math.floor(Math.random() * chunk.size);
+      for (let y = 255; y > 0; y--) {
+        const type = this.chunkManager.getVoxelType(x, y, z);
+        if (type === null || type === VoxelType.AIR) continue;
+        if (type === VoxelType.GRASS) {
+          const head = this.chunkManager.getVoxelType(x, y + 1, z);
+          const above = this.chunkManager.getVoxelType(x, y + 2, z);
+          if (head === VoxelType.AIR && above === VoxelType.AIR) {
+            return new THREE.Vector3(x + 0.5, y + 1, z + 0.5);
+          }
+        }
+        break;
+      }
+    }
+    return null;
+  }
+
+  private clearMobs() {
+    for (const m of this.mobs) {
+      this.world.scene.remove(m.mesh);
+    }
+    this.mobs = [];
+  }
+
+  public update(delta: number, playerPosition: THREE.Vector3) {
+    const isNight = this.world.isNight();
+    if (isNight) {
+      if (!this.spawned) {
+        this.spawnNightMobs();
+        this.spawned = true;
+      }
+    } else {
+      if (this.mobs.length > 0) this.clearMobs();
+      this.spawned = false;
+    }
+
+    for (const m of this.mobs) {
+      m.update(delta, playerPosition);
+    }
+  }
+}

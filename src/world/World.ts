@@ -2,17 +2,17 @@ import * as THREE from 'three';
 import { ChunkManager } from './ChunkManager';
 import { Chunk } from './Chunk';
 import { Renderer } from '../graphics/Renderer';
-import { EnemyManager } from '../npc/EnemyManager';
+import { MobManager } from '../npc/MobManager';
 
 export class World {
   public scene: THREE.Scene;
   public onNight: (() => void) | null = null;
   public onDay: (() => void) | null = null;
-  private timeOfDay: Number = 0;
+  private timeOfDay: number = 0;
 
   private readonly chunkManager: ChunkManager;
   private readonly renderer: Renderer;
-  private enemyManager: EnemyManager;
+  private mobManager: MobManager;
   private cycleTime: number = 0;
 
   private totalCycleTime: number = 0;
@@ -21,7 +21,7 @@ export class World {
     this.scene = renderer.scene;
     this.chunkManager = chunkManager;
     this.renderer = renderer;
-    this.enemyManager = new EnemyManager(this, chunkManager);
+    this.mobManager = new MobManager(this, chunkManager);
     this.totalCycleTime =
       this.renderer.dayNightConfig.dayDuration +
       this.renderer.dayNightConfig.transitionDuration +
@@ -32,7 +32,7 @@ export class World {
   update(delta: number, playerPosition: THREE.Vector3) {
     this.updateDayNightCycle(delta);
     this.chunkManager.update(playerPosition);
-    this.enemyManager.update(delta, playerPosition);
+    this.mobManager.update(delta, playerPosition);
   }
 
   public getLoadedChunks(): Chunk[] {
@@ -48,7 +48,11 @@ export class World {
   }
 
   public spawnZombie(position: THREE.Vector3) {
-    this.enemyManager.spawnZombie(position);
+    this.mobManager.spawnZombie(position);
+  }
+
+  public isNight(): boolean {
+    return this.timeOfDay === 1;
   }
 
   private updateDayNightCycle(delta: number) {

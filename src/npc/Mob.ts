@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { ChunkManager } from '../world/ChunkManager';
 import { Pathfinder } from './Pathfinder';
 
-export abstract class Enemy {
+export abstract class Mob {
   public position: THREE.Vector3;
   public velocity: THREE.Vector3 = new THREE.Vector3();
-  public mesh: THREE.Mesh;
+  public mesh: THREE.Object3D;
   protected path: THREE.Vector3[] = [];
   protected pathIndex: number = 0;
   protected speed: number = 2;
@@ -20,7 +20,7 @@ export abstract class Enemy {
     this.mesh.position.copy(this.position);
   }
 
-  protected abstract createMesh(): THREE.Mesh;
+  protected abstract createMesh(): THREE.Object3D;
 
   public update(delta: number, target: THREE.Vector3) {
     if (this.path.length === 0 || this.pathIndex >= this.path.length) {
