@@ -1,5 +1,6 @@
 import { SimplexNoiseGenerator } from '../utils/SimpleNoiseGenerator';
 import * as THREE from 'three';
+import { TerrainConfig } from './TerrainConfig';
 
 export enum VoxelType {
   AIR = 0,
@@ -18,47 +19,113 @@ export enum VoxelType {
   BEDROCK
 }
 
+const DEFAULT_CONFIG: Required<TerrainConfig> = {
+  maxHeight: 256,
+  seaLevel: 48,
+  baseFrequency: 0.001,
+  baseAmplitude: 5,
+  mountainFrequency: 0.002,
+  mountainThreshold: 0.6,
+  mountainAmplitude: 400,
+  oceanFrequency: 0.001,
+  oceanThreshold: 0.65,
+  oceanAmplitude: 120,
+  detailFrequency: 0.06,
+  detailAmplitude: 6,
+  tempFrequency: 0.0125,
+  rainFrequency: 0.01,
+  rainAmplitude: 1,
+  treeFrequency: 0.15,
+  caveCount: 3,
+  minCaveLength: 50,
+  maxCaveLength: 150,
+  baseCaveRadius: 2,
+  octaves: 4,
+  persistence: 3,
+  lacunarity: 2.3,
+  oceanFloorHeight: 20,
+  prairieMaxHeight: 80,
+};
+
 export class TerrainGenerator {
-  private readonly maxHeight: number = 256;
-  private readonly seaLevel: number = 48;
+  private readonly maxHeight: number;
+  private readonly seaLevel: number;
 
-  private readonly baseFrequency: number = 0.001;
-  private readonly baseAmplitude: number = 5;
+  private readonly baseFrequency: number;
+  private readonly baseAmplitude: number;
 
-  private readonly mountainFrequency: number = 0.002;
-  private readonly mountainThreshold: number = 0.6;
-  private readonly mountainAmplitude: number = 400;
+  private readonly mountainFrequency: number;
+  private readonly mountainThreshold: number;
+  private readonly mountainAmplitude: number;
 
-  private readonly oceanFrequency: number = 0.001;
-  private readonly oceanThreshold: number = 0.65;
-  private readonly oceanAmplitude: number = 120;
+  private readonly oceanFrequency: number;
+  private readonly oceanThreshold: number;
+  private readonly oceanAmplitude: number;
 
-  private readonly detailFrequency: number = 0.06;
-  private readonly detailAmplitude: number = 6;
+  private readonly detailFrequency: number;
+  private readonly detailAmplitude: number;
 
-  private readonly tempFrequency: number = 0.0125;
+  private readonly tempFrequency: number;
 
-  private readonly rainFrequency: number = 0.01;
-  private readonly rainAmplitude: number = 1;
+  private readonly rainFrequency: number;
+  private readonly rainAmplitude: number;
 
-  private readonly treeFrequency: number = 0.15;
+  private readonly treeFrequency: number;
 
-  private readonly caveCount: number = 3;
-  private readonly minCaveLength: number = 50;
-  private readonly maxCaveLength: number = 150;
-  private readonly baseCaveRadius: number = 2;
+  private readonly caveCount: number;
+  private readonly minCaveLength: number;
+  private readonly maxCaveLength: number;
+  private readonly baseCaveRadius: number;
 
-  private octaves: number = 4;
-  private persistence: number = 3;
-  private lacunarity: number = 2.3;
+  private octaves: number;
+  private persistence: number;
+  private lacunarity: number;
 
-  private oceanFloorHeight: number = 20;
-  private prairieMaxHeight: number = 80;
+  private oceanFloorHeight: number;
+  private prairieMaxHeight: number;
 
 
   private noiseGen: SimplexNoiseGenerator;
 
-  constructor(seed: string | null) {
+  constructor(seed: string | null, config: TerrainConfig = {}) {
+    const cfg = { ...DEFAULT_CONFIG, ...config };
+
+    this.maxHeight = cfg.maxHeight;
+    this.seaLevel = cfg.seaLevel;
+
+    this.baseFrequency = cfg.baseFrequency;
+    this.baseAmplitude = cfg.baseAmplitude;
+
+    this.mountainFrequency = cfg.mountainFrequency;
+    this.mountainThreshold = cfg.mountainThreshold;
+    this.mountainAmplitude = cfg.mountainAmplitude;
+
+    this.oceanFrequency = cfg.oceanFrequency;
+    this.oceanThreshold = cfg.oceanThreshold;
+    this.oceanAmplitude = cfg.oceanAmplitude;
+
+    this.detailFrequency = cfg.detailFrequency;
+    this.detailAmplitude = cfg.detailAmplitude;
+
+    this.tempFrequency = cfg.tempFrequency;
+
+    this.rainFrequency = cfg.rainFrequency;
+    this.rainAmplitude = cfg.rainAmplitude;
+
+    this.treeFrequency = cfg.treeFrequency;
+
+    this.caveCount = cfg.caveCount;
+    this.minCaveLength = cfg.minCaveLength;
+    this.maxCaveLength = cfg.maxCaveLength;
+    this.baseCaveRadius = cfg.baseCaveRadius;
+
+    this.octaves = cfg.octaves;
+    this.persistence = cfg.persistence;
+    this.lacunarity = cfg.lacunarity;
+
+    this.oceanFloorHeight = cfg.oceanFloorHeight;
+    this.prairieMaxHeight = cfg.prairieMaxHeight;
+
     this.noiseGen = new SimplexNoiseGenerator(seed);
   }
 
