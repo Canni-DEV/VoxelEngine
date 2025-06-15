@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ChunkManager } from '../world/ChunkManager';
 import { VoxelType } from '../world/TerrainGenerator';
+import { PriorityQueue } from '../utils/PriorityQueue';
 
 interface Node {
   pos: THREE.Vector3;
@@ -69,7 +70,8 @@ export class Pathfinder {
     startNode.h = Math.abs(gx - sx) + Math.abs(gy - sy) + Math.abs(gz - sz);
     startNode.f = startNode.h;
 
-    const open: Node[] = [startNode];
+    const open = new PriorityQueue<Node>((a, b) => a.f - b.f);
+    open.push(startNode);
     const cost = new Map<string, number>();
     const closed = new Set<string>();
     cost.set(this.key(sx, sy, sz), 0);
@@ -82,13 +84,8 @@ export class Pathfinder {
       new THREE.Vector3(0, 0, -1)
     ];
 
-    while (open.length > 0 && maxSteps-- > 0) {
-      // Find node with lowest f without sorting entire array
-      let currentIndex = 0;
-      for (let i = 1; i < open.length; i++) {
-        if (open[i].f < open[currentIndex].f) currentIndex = i;
-      }
-      const current = open.splice(currentIndex, 1)[0];
+    while (open.size() > 0 && maxSteps-- > 0) {
+      const current = open.pop()!;
 
       const cKey = this.key(current.pos.x, current.pos.y, current.pos.z);
       if (closed.has(cKey)) {
