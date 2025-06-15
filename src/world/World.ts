@@ -52,7 +52,7 @@ export class World {
       // Día completo
       factor = 0;
       if (this.timeOfDay != factor) {
-        this.timeOfDay == factor;
+        this.timeOfDay = factor;
         if (this.onDay) {
           this.onDay();
         }
@@ -64,7 +64,7 @@ export class World {
       // Noche completa
       factor = 1;
       if (this.timeOfDay != factor) {
-        this.timeOfDay == factor;
+        this.timeOfDay = factor;
         if (this.onNight) {
           this.onNight();
         }
