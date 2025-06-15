@@ -40,15 +40,19 @@ export abstract class Mob {
     if (this.path.length > 0 && this.pathIndex < this.path.length) {
       const next = this.path[this.pathIndex];
       const dir = next.clone().sub(this.position);
-      if (dir.lengthSq() < 0.01) {
+      const dist = dir.length();
+      if (dist < 0.01) {
+        this.position.copy(next);
+        this.mesh.position.copy(this.position);
         this.pathIndex++;
       } else {
         dir.normalize();
-        const step = dir.multiplyScalar(this.speed * delta);
+        const stepLength = Math.min(this.speed * delta, dist);
+        const step = dir.multiplyScalar(stepLength);
         const newPos = this.position.clone().add(step);
-        const nx = Math.floor(newPos.x);
-        const ny = Math.floor(newPos.y);
-        const nz = Math.floor(newPos.z);
+        const nx = Math.floor(next.x);
+        const ny = Math.floor(next.y);
+        const nz = Math.floor(next.z);
 
         if (this.pathfinder.isWalkable(nx, ny, nz)) {
           this.position.copy(newPos);

@@ -15,7 +15,11 @@ export class Zombie extends Mob {
   }
 
   protected createMesh(): THREE.Object3D {
-    const material = new THREE.MeshLambertMaterial({ color: 0x84c37c });
+    const material = new THREE.MeshLambertMaterial({
+      color: 0xa4e38c,
+      emissive: 0x335533,
+      emissiveIntensity: 0.5
+    });
 
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.6), material);
     head.position.y = 1.6;
