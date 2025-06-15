@@ -17,12 +17,37 @@ export class Pathfinder {
     return `${x},${y},${z}`;
   }
 
-  public isWalkable(x: number, y: number, z: number): boolean {
+  private withinRenderDistance(chunkX: number, chunkZ: number): boolean {
+    const playerChunk = this.chunkManager.getPlayerChunk();
+    const distX = Math.abs(chunkX - playerChunk.x);
+    const distZ = Math.abs(chunkZ - playerChunk.y);
+    return distX <= this.chunkManager.getRenderDistance() && distZ <= this.chunkManager.getRenderDistance();
+  }
+
+  public isWalkable(x: number, y: number, z: number, allowUnloaded: boolean = false): boolean {
+    const chunkX = Math.floor(x / this.chunkManager.chunkSize);
+    const chunkZ = Math.floor(z / this.chunkManager.chunkSize);
     const ground = this.chunkManager.getVoxelType(x, y - 1, z);
-    if (ground === null || ground === VoxelType.AIR) return false;
+    if (ground === null) {
+      if (allowUnloaded && this.withinRenderDistance(chunkX, chunkZ)) {
+        this.chunkManager.requestChunkLoad(chunkX, chunkZ);
+        return true;
+      }
+      return false;
+    }
+    if (ground === VoxelType.AIR) return false;
+
     const head = this.chunkManager.getVoxelType(x, y, z);
     const above = this.chunkManager.getVoxelType(x, y + 1, z);
-    return (head === null || head === VoxelType.AIR) && (above === null || above === VoxelType.AIR);
+
+    if (head === null || above === null) {
+      if (allowUnloaded && this.withinRenderDistance(chunkX, chunkZ)) {
+        this.chunkManager.requestChunkLoad(chunkX, chunkZ);
+        return true;
+      }
+      return false;
+    }
+    return head === VoxelType.AIR && above === VoxelType.AIR;
   }
 
   public findPath(start: THREE.Vector3, goal: THREE.Vector3, maxSteps = 2048): THREE.Vector3[] {
@@ -75,7 +100,7 @@ export class Pathfinder {
           const ny = current.pos.y + dy;
           const nz = current.pos.z + d.z;
           if (Math.abs(ny - current.pos.y) > 1) continue;
-          if (!this.isWalkable(nx, ny, nz)) continue;
+          if (!this.isWalkable(nx, ny, nz, true)) continue;
 
           const k = this.key(nx, ny, nz);
           const newG = current.g + 1;

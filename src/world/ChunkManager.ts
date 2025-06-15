@@ -16,6 +16,8 @@ export class ChunkManager {
 
   private loadCounter: number = 2;
   private firstChunksLoaded: boolean = false;
+  private currentChunkX: number = 0;
+  private currentChunkZ: number = 0;
 
   constructor(scene: THREE.Scene, config: TerrainConfig = {}) {
     this.scene = scene;
@@ -27,10 +29,10 @@ export class ChunkManager {
 
   public update(playerPosition: THREE.Vector3) {
     //this.updateShaders();
-    const currentChunkX = Math.floor(playerPosition.x / this.chunkSize);
-    const currentChunkZ = Math.floor(playerPosition.z / this.chunkSize);
-    this.deleteChunks(currentChunkX, currentChunkZ);
-    this.setChunksToLoad(currentChunkX, currentChunkZ);
+    this.currentChunkX = Math.floor(playerPosition.x / this.chunkSize);
+    this.currentChunkZ = Math.floor(playerPosition.z / this.chunkSize);
+    this.deleteChunks(this.currentChunkX, this.currentChunkZ);
+    this.setChunksToLoad(this.currentChunkX, this.currentChunkZ);
 
     if (--this.loadCounter <= 0) {
       this.loadNextChunk();
@@ -49,6 +51,21 @@ export class ChunkManager {
 
   public isWorldLoaded(): boolean {
     return this.firstChunksLoaded;
+  }
+
+  public getRenderDistance(): number {
+    return this.renderDistance;
+  }
+
+  public getPlayerChunk(): THREE.Vector2 {
+    return new THREE.Vector2(this.currentChunkX, this.currentChunkZ);
+  }
+
+  public requestChunkLoad(chunkX: number, chunkZ: number): void {
+    const key = this.getChunkKey(chunkX, chunkZ);
+    if (this.chunks.has(key) || this.loadingChunksKeys.find(c => c.x === chunkX && c.y === chunkZ)) return;
+    this.loadingChunksKeys.push(new THREE.Vector2(chunkX, chunkZ));
+    this.loadingChunks = true;
   }
 
   private updateShaders(): void {
