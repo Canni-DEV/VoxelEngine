@@ -7,6 +7,7 @@ import { Controls } from './player/Controls';
 import { InputManager } from './player/InputManager';
 import { ChunkManager } from './world/ChunkManager';
 import { TerrainConfig } from './world/TerrainConfig';
+import * as THREE from 'three';
 
 async function init() {
   const renderer = new Renderer();
@@ -35,6 +36,8 @@ async function init() {
   const controls = new Controls(player, renderer.domElement, inputManager);
   const audioManager = new AudioManager();
   const uiManager = new UIManager();
+
+  world.spawnZombie(new THREE.Vector3(5, 50, 5));
 
   let lastTime = performance.now();
   let accumulator = 0;
