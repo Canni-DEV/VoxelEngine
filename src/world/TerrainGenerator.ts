@@ -17,6 +17,16 @@ export enum VoxelType {
   CLOUD,
   BEDROCK
 }
+export enum Biome {
+  OCEAN,
+  BEACH,
+  PLAINS,
+  DESERT,
+  FOREST,
+  MOUNTAIN,
+  SNOW
+}
+
 
 export class TerrainGenerator {
   private readonly maxHeight: number = 256;
@@ -54,6 +64,16 @@ export class TerrainGenerator {
 
   private oceanFloorHeight: number = 20;
   private prairieMaxHeight: number = 80;
+  private readonly biomeSurface: Record<Biome, { top: VoxelType; filler: VoxelType; thickness: number }> = {
+    [Biome.OCEAN]: { top: VoxelType.SAND, filler: VoxelType.SAND, thickness: 8 },
+    [Biome.BEACH]: { top: VoxelType.SAND, filler: VoxelType.SAND, thickness: 8 },
+    [Biome.DESERT]: { top: VoxelType.SAND, filler: VoxelType.SAND, thickness: 5 },
+    [Biome.PLAINS]: { top: VoxelType.GRASS, filler: VoxelType.DIRT, thickness: 5 },
+    [Biome.FOREST]: { top: VoxelType.GRASS, filler: VoxelType.DIRT, thickness: 6 },
+    [Biome.MOUNTAIN]: { top: VoxelType.STONE, filler: VoxelType.STONE, thickness: 1 },
+    [Biome.SNOW]: { top: VoxelType.SNOW, filler: VoxelType.SNOW, thickness: 1 }
+  };
+
 
 
   private noiseGen: SimplexNoiseGenerator;
@@ -108,6 +128,27 @@ export class TerrainGenerator {
     const rainfall = this.noiseGen.noise(worldX * this.rainFrequency, worldZ * this.rainFrequency) * this.rainAmplitude;
 
     return { height: Math.floor(finalHeight), temperature, rainfall };
+  }
+  private getBiome(height: number, temperature: number, rainfall: number): Biome {
+    if (height <= this.seaLevel) return Biome.OCEAN;
+    if (height <= this.seaLevel + 4) return Biome.BEACH;
+    if (height > this.seaLevel + 140 || temperature < 0.3) return Biome.SNOW;
+    if (height > this.seaLevel + 100) return Biome.MOUNTAIN;
+    if (temperature > 0.8 && rainfall < 0.3) return Biome.DESERT;
+    if (rainfall > 0.55) return Biome.FOREST;
+    return Biome.PLAINS;
+  }
+
+
+  private getCaveCountForBiome(biome: Biome): number {
+    switch (biome) {
+      case Biome.MOUNTAIN:
+        return this.caveCount + 2;
+      case Biome.DESERT:
+        return Math.max(1, this.caveCount - 1);
+      default:
+        return this.caveCount;
+    }
   }
 
   private initializeChunk(size: number): VoxelType[][][] {
@@ -185,45 +226,12 @@ export class TerrainGenerator {
     }
   }
 
-
-  private getSurfaceDecoration(worldX: number, worldZ: number, height: number, temperature: number, rainfall: number)
+  private getSurfaceDecoration(worldX: number, worldZ: number, biome: Biome)
     : { top: VoxelType, filler: VoxelType, thickness: number } {
-    if (height < this.seaLevel + 4) {
-      const thickness = Math.floor(this.mapNoise(this.noiseGen.noise(worldX * 10, worldZ * 10), 8, 10));
-      return { top: VoxelType.SAND, filler: VoxelType.SAND, thickness };
-    }
-    if (height < this.seaLevel + 10) {
-      const thickness = Math.floor(this.mapNoise(this.noiseGen.noise(worldX * 20, worldZ * 20), 5, 8));
-      if (temperature > 0.8) {
-        return { top: VoxelType.SAND, filler: VoxelType.SAND, thickness };
-      } else if (rainfall < 0.4) {
-        return { top: VoxelType.DIRT, filler: VoxelType.DIRT, thickness };
-      } else {
-        return { top: VoxelType.GRASS, filler: VoxelType.DIRT, thickness };
-      }
-    }
-    if (height < this.seaLevel + 30) {
-      const thickness = Math.floor(this.mapNoise(this.noiseGen.noise(worldX * 30, worldZ * 30), 5, 8));
-      if (temperature > 0.6 && rainfall < 0.4) {
-        return { top: VoxelType.DIRT, filler: VoxelType.DIRT, thickness };
-      } else {
-        return { top: VoxelType.GRASS, filler: VoxelType.DIRT, thickness };
-      }
-    }
-    if (height < this.seaLevel + 40) {
-      const thickness = Math.floor(this.mapNoise(this.noiseGen.noise(worldX * 40, worldZ * 40), 5, 8));
-      if (temperature > 0.5) {
-        return { top: VoxelType.STONE, filler: VoxelType.DIRT, thickness };
-      } else if (rainfall < 0.8) {
-        return { top: VoxelType.DIRT, filler: VoxelType.DIRT, thickness };
-      } else {
-        return { top: VoxelType.GRASS, filler: VoxelType.DIRT, thickness };
-      }
-    }
-    if (height < this.seaLevel + 150) {
-      return { top: VoxelType.STONE, filler: VoxelType.STONE, thickness: 1 };
-    }
-    return { top: VoxelType.SNOW, filler: VoxelType.SNOW, thickness: 1 };
+      const base = this.biomeSurface[biome] || this.biomeSurface[Biome.PLAINS];
+      const variation = Math.floor(this.mapNoise(this.noiseGen.noise(worldX * 20, worldZ * 20), base.thickness - 1, base.thickness + 1));
+      const thickness = Math.max(1, variation);
+      return { top: base.top, filler: base.filler, thickness };
   }
 
   private surfaceDecoration(data: VoxelType[][][], heightMap: { height: number, temperature: number, rainfall: number }[][], chunkX: number, chunkZ: number, size: number): void {
@@ -231,9 +239,11 @@ export class TerrainGenerator {
       for (let z = 0; z < size; z++) {
         const worldX = x + chunkX * size;
         const worldZ = z + chunkZ * size;
-        const { height, temperature, rainfall } = heightMap[x][z];
-        if (height < 0 || height >= this.maxHeight) continue;
-        const deco = this.getSurfaceDecoration(worldX, worldZ, height, temperature, rainfall);
+          const { height, temperature, rainfall } = heightMap[x][z];
+          if (height < 0 || height >= this.maxHeight) continue;
+          const biome = this.getBiome(height, temperature, rainfall);
+          const deco = this.getSurfaceDecoration(worldX, worldZ, biome);
+
         const start = Math.max(0, height - deco.thickness + 1);
         for (let y = start; y <= height; y++) {
           data[x][y][z] = (y === height) ? deco.top : deco.filler;
@@ -245,16 +255,20 @@ export class TerrainGenerator {
   public generateChunk(chunkX: number, chunkZ: number, size: number): VoxelType[][][] {
     const data = this.initializeChunk(size);
     const heightMap = this.generateHeightMap(chunkX, chunkZ, size);
+    const center = heightMap[Math.floor(size / 2)][Math.floor(size / 2)];
+    const chunkBiome = this.getBiome(center.height, center.temperature, center.rainfall);
+    const caves = this.getCaveCountForBiome(chunkBiome);
+
     this.terrainShaping(data, heightMap, size);
     this.waterFilling(data, heightMap, size);
     this.surfaceDecoration(data, heightMap, chunkX, chunkZ, size);
-    this.spawnTrees(data, size, chunkX, chunkZ);
-    this.carveCaves(data, size, chunkX, chunkZ, heightMap);
+    this.spawnTrees(data, size, chunkX, chunkZ, heightMap);
+    this.carveCaves(data, size, chunkX, chunkZ, heightMap, caves);
     //this.clouds(data,chunkX,chunkZ,size);
     return data;
   }
 
-  private carveCaves(data: VoxelType[][][], size: number, chunkX: number, chunkZ: number, heightMap: { height: number, temperature: number, rainfall: number }[][]): void {
+  private carveCaves(data: VoxelType[][][], size: number, chunkX: number, chunkZ: number, heightMap: { height: number, temperature: number, rainfall: number }[][], caves: number): void {
     let maxHeight = this.seaLevel;
     for (let x = 0; x < size; x++) {
       for (let z = 0; z < size; z++) {
@@ -262,7 +276,7 @@ export class TerrainGenerator {
         if (height > maxHeight) maxHeight = height;
       }
     }
-    for (let c = 0; c < this.caveCount; c++) {
+    for (let c = 0; c < caves; c++) {
       const lengthNoise = this.noiseGen.noise(chunkX * 100 + c, chunkZ * 100 + c);
       const caveLength = Math.floor(this.mapNoise(lengthNoise, this.minCaveLength, this.maxCaveLength));
 
@@ -315,9 +329,13 @@ export class TerrainGenerator {
     }
   }
 
-  private spawnTrees(data: VoxelType[][][], size: number, chunkX: number, chunkZ: number): void {
+  private spawnTrees(data: VoxelType[][][], size: number, chunkX: number, chunkZ: number, heightMap: { height: number, temperature: number, rainfall: number }[][]): void {
     for (let x = 0; x < size; x++) {
       for (let z = 0; z < size; z++) {
+        const { height, temperature, rainfall } = heightMap[x][z];
+        const biome = this.getBiome(height, temperature, rainfall);
+        if (biome !== Biome.PLAINS && biome !== Biome.FOREST) continue;
+
         let topY = -1;
         for (let y = this.maxHeight - 1; y >= 0; y--) {
           if (data[x][y][z] !== VoxelType.AIR) {
@@ -350,19 +368,16 @@ export class TerrainGenerator {
               const leafNoise = this.noiseGen.noise(dx * 3000 * topY, dz * 3000 * topY);
               if (leafNoise < 0.15) continue;
               if (data[nx][canopyY][nz] === VoxelType.AIR) {
-                if (trunkHeight < 6) {
-                  data[nx][canopyY][nz] = VoxelType.LEAVES_YOUNG;
-                  continue;
+                  let leaf = (biome === Biome.PLAINS) ? VoxelType.LEAVES_YOUNG : VoxelType.LEAVES;
+                  if (trunkHeight < 6) {
+                    leaf = VoxelType.LEAVES_YOUNG;
+                  } else if (trunkHeight > 9) {
+                    leaf = VoxelType.LEAVES_AUTUMN;
+                  } else if (treeNoiseType < 0.12 && treeNoiseType > 0.10) {
+                    leaf = VoxelType.LEAVES_CHERRY;
+                  }
+                  data[nx][canopyY][nz] = leaf;
                 }
-                if (trunkHeight > 9) {
-                  data[nx][canopyY][nz] = VoxelType.LEAVES_AUTUMN;
-                  continue;
-                }
-                if (treeNoiseType < 0.12 && treeNoiseType > 0.10) {
-                  data[nx][canopyY][nz] = VoxelType.LEAVES_CHERRY;
-                  continue;
-                }
-                data[nx][canopyY][nz] = VoxelType.LEAVES;
               }
             }
           }
