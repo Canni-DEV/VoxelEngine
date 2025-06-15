@@ -57,8 +57,12 @@ export class Pathfinder {
     ];
 
     while (open.length > 0 && maxSteps-- > 0) {
-      open.sort((a, b) => a.f - b.f);
-      const current = open.shift()!;
+      // Find node with lowest f without sorting entire array
+      let currentIndex = 0;
+      for (let i = 1; i < open.length; i++) {
+        if (open[i].f < open[currentIndex].f) currentIndex = i;
+      }
+      const current = open.splice(currentIndex, 1)[0];
 
       if (current.pos.x === gx && current.pos.y === gy && current.pos.z === gz) {
         targetNode = current;
