@@ -3,20 +3,23 @@ import { Zombie } from './Zombie';
 import { World } from '../world/World';
 import { ChunkManager } from '../world/ChunkManager';
 import { VoxelType } from '../world/TerrainGenerator';
+import { PathfindingManager } from './PathfindingManager';
 
 export class MobManager {
   private mobs: Zombie[] = [];
   private world: World;
   private chunkManager: ChunkManager;
+  private pathManager: PathfindingManager;
   private spawned: boolean = false;
 
   constructor(world: World, chunkManager: ChunkManager) {
     this.world = world;
     this.chunkManager = chunkManager;
+    this.pathManager = new PathfindingManager(chunkManager);
   }
 
   public spawnZombie(position: THREE.Vector3) {
-    const zombie = new Zombie(position, this.chunkManager);
+    const zombie = new Zombie(position, this.chunkManager, this.pathManager);
     this.mobs.push(zombie);
     this.world.scene.add(zombie.mesh);
   }
@@ -59,6 +62,7 @@ export class MobManager {
   }
 
   public update(delta: number, playerPosition: THREE.Vector3) {
+    this.pathManager.update();
     const isNight = this.world.isNight();
     if (isNight) {
       if (!this.spawned) {
