@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { ChunkManager } from '../world/ChunkManager';
 import { Pathfinder } from './Pathfinder';
+import { processCollisionsAndEnvironment } from '../world/Physics';
 
 export abstract class Mob {
   public position: THREE.Vector3;
   public velocity: THREE.Vector3 = new THREE.Vector3();
+  public onFloor: boolean = false;
+  public onWater: boolean = false;
   public mesh: THREE.Object3D;
   protected path: THREE.Vector3[] = [];
   protected pathIndex: number = 0;
@@ -13,6 +16,11 @@ export abstract class Mob {
   protected chunkManager: ChunkManager;
   protected timeSinceLastPath: number = 0;
   protected recomputeInterval: number = 0.5;
+
+  protected readonly colliderHalfWidth: number = 0.3;
+  protected readonly colliderHeight: number = 1.6;
+  protected readonly epsilon: number = 0.001;
+  protected tempVec: THREE.Vector3 = new THREE.Vector3();
 
   constructor(position: THREE.Vector3, chunkManager: ChunkManager) {
     this.position = position.clone();
@@ -55,7 +63,20 @@ export abstract class Mob {
         const nz = Math.floor(next.z);
 
         if (this.pathfinder.isWalkable(nx, ny, nz)) {
+          this.velocity.copy(step);
           this.position.copy(newPos);
+          const res = processCollisionsAndEnvironment(
+            this.position,
+            this.velocity,
+            this.chunkManager.getLoadedChunks(),
+            null,
+            this.colliderHalfWidth,
+            this.colliderHeight,
+            this.epsilon,
+            this.tempVec
+          );
+          this.onFloor = res.onFloor;
+          this.onWater = res.onWater;
           this.mesh.position.copy(this.position);
         } else {
           // force a new path on next frame
