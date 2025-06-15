@@ -64,11 +64,17 @@ export function processCollisionsAndEnvironment(
   tempVec.set(position.x, position.y - 0.1, position.z);
   const footPos = tempVec;
 
+  const chunkMin = new THREE.Vector3();
+  const chunkMax = new THREE.Vector3();
+  const blockMin = new THREE.Vector3();
+  const blockMax = new THREE.Vector3();
+  const blockAABB = { min: blockMin, max: blockMax };
+
   for (const chunk of chunks) {
     const chunkSize = chunk.size;
     const maxHeight = chunk.terrainData[0].length;
-    const chunkMin = new THREE.Vector3(chunk.x * chunkSize, 0, chunk.z * chunkSize);
-    const chunkMax = new THREE.Vector3(
+    chunkMin.set(chunk.x * chunkSize, 0, chunk.z * chunkSize);
+    chunkMax.set(
       chunk.x * chunkSize + chunkSize,
       maxHeight,
       chunk.z * chunkSize + chunkSize
@@ -126,17 +132,16 @@ export function processCollisionsAndEnvironment(
         for (let k = startK; k < endK; k++) {
           if (chunk.terrainData[i][j][k] === 0 || chunk.terrainData[i][j][k] === VoxelType.WATER) continue;
 
-          const blockMin = new THREE.Vector3(
+          blockMin.set(
             chunk.x * chunkSize + i,
             j,
             chunk.z * chunkSize + k
           );
-          const blockMax = new THREE.Vector3(
+          blockMax.set(
             chunk.x * chunkSize + i + 1,
             j + 1,
             chunk.z * chunkSize + k + 1
           );
-          const blockAABB = { min: blockMin, max: blockMax };
 
           if (!aabbIntersect(collider, blockAABB)) continue;
 
