@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ChunkManager } from '../world/ChunkManager';
-import { Pathfinder } from './Pathfinder';
+import { PathfindingManager } from './PathfindingManager';
 import { processCollisionsAndEnvironment } from '../world/Physics';
 import { VoxelType } from '../world/TerrainGenerator';
 
@@ -13,7 +13,8 @@ export abstract class Mob {
   protected path: THREE.Vector3[] = [];
   protected pathIndex: number = 0;
   protected speed: number = 2;
-  protected pathfinder: Pathfinder;
+  protected pathManager: PathfindingManager;
+  protected pendingPath: Promise<void> | null = null;
   protected chunkManager: ChunkManager;
   protected timeSinceLastPath: number = 0;
   protected recomputeInterval: number = 0.5;
@@ -23,10 +24,10 @@ export abstract class Mob {
   protected readonly epsilon: number = 0.001;
   protected tempVec: THREE.Vector3 = new THREE.Vector3();
 
-  constructor(position: THREE.Vector3, chunkManager: ChunkManager) {
+  constructor(position: THREE.Vector3, chunkManager: ChunkManager, pathManager: PathfindingManager) {
     this.position = position.clone();
     this.chunkManager = chunkManager;
-    this.pathfinder = new Pathfinder(chunkManager);
+    this.pathManager = pathManager;
     this.mesh = this.createMesh();
     this.mesh.position.copy(this.position);
   }
@@ -37,12 +38,21 @@ export abstract class Mob {
     this.timeSinceLastPath += delta;
 
     if (
-      this.path.length === 0 ||
-      this.pathIndex >= this.path.length ||
-      this.timeSinceLastPath > this.recomputeInterval
+      (this.path.length === 0 ||
+        this.pathIndex >= this.path.length ||
+        this.timeSinceLastPath > this.recomputeInterval) &&
+      !this.pendingPath
     ) {
-      this.path = this.pathfinder.findPath(this.position, target);
-      this.pathIndex = 0;
+      this.pendingPath = this.pathManager
+        .requestPath(this.position, target)
+        .then(path => {
+          this.path = path;
+          this.pathIndex = 0;
+          this.pendingPath = null;
+        })
+        .catch(() => {
+          this.pendingPath = null;
+        });
       this.timeSinceLastPath = 0;
     }
 
@@ -74,7 +84,7 @@ export abstract class Mob {
         const walkableStep =
           ground !== null && ground !== VoxelType.AIR && head === VoxelType.AIR && above === VoxelType.AIR;
 
-        if (walkableStep && this.pathfinder.isWalkable(nx, ny, nz)) {
+        if (walkableStep && this.pathManager.isWalkable(nx, ny, nz)) {
           this.velocity.copy(step);
           this.position.copy(newPos);
           const res = processCollisionsAndEnvironment(

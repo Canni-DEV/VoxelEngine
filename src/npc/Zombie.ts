@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Mob } from './Mob';
 import { ChunkManager } from '../world/ChunkManager';
+import { PathfindingManager } from './PathfindingManager';
 
 export class Zombie extends Mob {
   private state: 'wandering' | 'chasing' = 'wandering';
@@ -9,8 +10,8 @@ export class Zombie extends Mob {
   private readonly detectRange = 10;
   private readonly wanderRadius = 5;
 
-  constructor(position: THREE.Vector3, chunkManager: ChunkManager) {
-    super(position, chunkManager);
+  constructor(position: THREE.Vector3, chunkManager: ChunkManager, pathManager: PathfindingManager) {
+    super(position, chunkManager, pathManager);
     this.spawnPoint = position.clone();
   }
 
