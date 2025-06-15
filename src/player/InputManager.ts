@@ -38,7 +38,7 @@ export class InputManager {
       addCoords.z
     );
     if (!addData) return;
-    if (addData.chunk.terrainData[addData.localX][addCoords.y][addData.localZ] !== VoxelType.AIR)
+    if (addData.chunk.getVoxel(addData.localX, addCoords.y, addData.localZ) !== VoxelType.AIR)
       return;
     addData.chunk.updateVoxel(addData.localX, addCoords.y, addData.localZ, VoxelType.TRUNK);
   }
@@ -54,7 +54,7 @@ export class InputManager {
       voxelCoords.z
     );
     if (!targetData) return;
-    if (targetData.chunk.terrainData[targetData.localX][voxelCoords.y][targetData.localZ] == VoxelType.BEDROCK)
+    if (targetData.chunk.getVoxel(targetData.localX, voxelCoords.y, targetData.localZ) == VoxelType.BEDROCK)
       return;
     targetData.chunk.updateVoxel(targetData.localX, voxelCoords.y, targetData.localZ, VoxelType.AIR);
   }
@@ -72,7 +72,7 @@ export class InputManager {
     if (!targetData) return;
 
     if (event.button === 0) { // Botón izquierdo: eliminar voxel
-      if (targetData.chunk.terrainData[targetData.localX][voxelCoords.y][targetData.localZ] == VoxelType.BEDROCK)
+      if (targetData.chunk.getVoxel(targetData.localX, voxelCoords.y, targetData.localZ) == VoxelType.BEDROCK)
         return;
       targetData.chunk.updateVoxel(targetData.localX, voxelCoords.y, targetData.localZ, VoxelType.AIR);
     } else if (event.button === 2) { // Botón derecho: agregar voxel
@@ -82,7 +82,7 @@ export class InputManager {
       if (this.checkPlayerPosition(addCoords.x, addCoords.y, addCoords.z)) return;
       const addData = this.getChunkAndLocalCoords(addCoords.x, addCoords.y, addCoords.z);
       if (!addData) return;
-      if (addData.chunk.terrainData[addData.localX][addCoords.y][addData.localZ] !== VoxelType.AIR)
+      if (addData.chunk.getVoxel(addData.localX, addCoords.y, addData.localZ) !== VoxelType.AIR)
         return;
       addData.chunk.updateVoxel(addData.localX, addCoords.y, addData.localZ, VoxelType.TRUNK);
     }
