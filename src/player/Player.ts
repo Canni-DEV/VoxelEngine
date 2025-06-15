@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { World } from '../world/World';
-import { VoxelType } from '../world/TerrainGenerator';
+import { processCollisionsAndEnvironment } from '../world/Physics';
 import { Renderer } from '../graphics/Renderer';
 
 export class Player {
@@ -94,7 +94,20 @@ export class Player {
     if (!this.flying) {
       const maxIterations = 10;
       let iterations = 0;
-      while (this.processCollisionsAndEnvironment() && iterations < maxIterations) {
+      while (iterations < maxIterations) {
+        const res = processCollisionsAndEnvironment(
+          this.position,
+          this.velocity,
+          this.world.getLoadedChunks(),
+          this.renderer,
+          this.colliderHalfWidth,
+          this.colliderHeight,
+          this.epsilon,
+          this.tempVec
+        );
+        this.onFloor = res.onFloor;
+        this.onWater = res.onWater;
+        if (!res.collided) break;
         iterations++;
       }
     }
@@ -107,155 +120,4 @@ export class Player {
     );
   }
 
-  private getCollider(): { min: THREE.Vector3; max: THREE.Vector3 } {
-    return {
-      min: new THREE.Vector3(
-        this.position.x - this.colliderHalfWidth,
-        this.position.y,
-        this.position.z - this.colliderHalfWidth
-      ),
-      max: new THREE.Vector3(
-        this.position.x + this.colliderHalfWidth,
-        this.position.y + this.colliderHeight,
-        this.position.z + this.colliderHalfWidth
-      )
-    };
-  }
-
-  private aabbIntersect(
-    a: { min: THREE.Vector3; max: THREE.Vector3 },
-    b: { min: THREE.Vector3; max: THREE.Vector3 }
-  ): boolean {
-    return (a.min.x < b.max.x && a.max.x > b.min.x) &&
-           (a.min.y < b.max.y && a.max.y > b.min.y) &&
-           (a.min.z < b.max.z && a.max.z > b.min.z);
-  }
-
-  private processCollisionsAndEnvironment(): boolean {
-    let collisionResolved = false;
-    // Reiniciar las banderas ambientales
-    this.onFloor = false;
-    this.onWater = false;
-    let waterShader = false;
-
-    const loadedChunks = this.world.getLoadedChunks();
-    const collider = this.getCollider();
-
-    this.tempVec.set(this.position.x, this.position.y - 0.1, this.position.z);
-    const footPos = this.tempVec;
-
-    for (const chunk of loadedChunks) {
-      const chunkSize = chunk.size;
-      const maxHeight = chunk.terrainData[0].length;
-      const chunkMin = new THREE.Vector3(chunk.x * chunkSize, 0, chunk.z * chunkSize);
-      const chunkMax = new THREE.Vector3(chunk.x * chunkSize + chunkSize, maxHeight, chunk.z * chunkSize + chunkSize);
-
-      // Actualizar variables ambientales si el pie se encuentra dentro del chunk
-      if (
-        footPos.x >= chunkMin.x && footPos.x < chunkMax.x &&
-        footPos.y >= chunkMin.y && footPos.y < chunkMax.y &&
-        footPos.z >= chunkMin.z && footPos.z < chunkMax.z
-      ) {
-        const localX = Math.floor(footPos.x - chunk.x * chunkSize);
-        const localY = Math.floor(footPos.y);
-        const localZ = Math.floor(footPos.z - chunk.z * chunkSize);
-        if (localX >= 0 && localX < chunkSize &&
-            localY >= 0 && localY < maxHeight &&
-            localZ >= 0 && localZ < chunkSize) {
-          const voxel = chunk.terrainData[localX][localY][localZ];
-          if (voxel === VoxelType.WATER) {
-            this.onWater = true;
-            if (chunk.terrainData[localX][Math.floor(footPos.y + 1.5)][localZ]) {
-              waterShader = true;
-            }
-          } else if (voxel !== 0) {
-            const voxelUp = chunk.terrainData[localX][localY + 1][localZ];
-            if (voxelUp === VoxelType.WATER) {
-              this.onWater = true;
-              if (chunk.terrainData[localX][Math.floor(footPos.y + 1.5)][localZ]) {
-                waterShader = true;
-              }
-            }
-            this.onFloor = true;
-          }
-        }
-      }
-
-      // Resolver colisiones: si el AABB del chunk no intersecta con el del jugador, se omite.
-      if (!this.aabbIntersect(collider, { min: chunkMin, max: chunkMax })) continue;
-
-      // Calcular el rango de índices en el chunk
-      const startI = Math.max(0, Math.floor(collider.min.x) - chunk.x * chunkSize);
-      const endI = Math.min(chunkSize, Math.ceil(collider.max.x) - chunk.x * chunkSize);
-      const startJ = Math.max(0, Math.floor(collider.min.y));
-      const endJ = Math.min(maxHeight, Math.ceil(collider.max.y));
-      const startK = Math.max(0, Math.floor(collider.min.z) - chunk.z * chunkSize);
-      const endK = Math.min(chunkSize, Math.ceil(collider.max.z) - chunk.z * chunkSize);
-
-      for (let i = startI; i < endI; i++) {
-        for (let j = startJ; j < endJ; j++) {
-          for (let k = startK; k < endK; k++) {
-            // Ignorar aire y agua
-            if (chunk.terrainData[i][j][k] === 0 || chunk.terrainData[i][j][k] === VoxelType.WATER) continue;
-
-            // Calcular el AABB del bloque (1x1x1)
-            const blockMin = new THREE.Vector3(
-              chunk.x * chunkSize + i,
-              j,
-              chunk.z * chunkSize + k
-            );
-            const blockMax = new THREE.Vector3(
-              chunk.x * chunkSize + i + 1,
-              j + 1,
-              chunk.z * chunkSize + k + 1
-            );
-            const blockAABB = { min: blockMin, max: blockMax };
-
-            if (!this.aabbIntersect(collider, blockAABB)) continue;
-
-            // Calcular el solapamiento en cada eje
-            const overlapX = Math.min(collider.max.x - blockMin.x, blockMax.x - collider.min.x);
-            const overlapY = Math.min(collider.max.y - blockMin.y, blockMax.y - collider.min.y);
-            const overlapZ = Math.min(collider.max.z - blockMin.z, blockMax.z - collider.min.z);
-            const minOverlap = Math.min(overlapX, overlapY, overlapZ);
-            if (minOverlap < this.epsilon) continue;
-
-            // Resolver la colisión en el eje de menor solapamiento
-            if (minOverlap === overlapX) {
-              if (this.position.x < (blockMin.x + blockMax.x) / 2) {
-                this.position.x = blockMin.x - this.colliderHalfWidth;
-              } else {
-                this.position.x = blockMax.x + this.colliderHalfWidth;
-              }
-              collisionResolved = true;
-              break;
-            } else if (minOverlap === overlapY) {
-              if (this.position.y < (blockMin.y + blockMax.y) / 2) {
-                this.position.y = blockMin.y - this.colliderHeight;
-              } else {
-                this.position.y = blockMax.y;
-              }
-              this.velocity.y = 0;
-              collisionResolved = true;
-              break;
-            } else {
-              if (this.position.z < (blockMin.z + blockMax.z) / 2) {
-                this.position.z = blockMin.z - this.colliderHalfWidth;
-              } else {
-                this.position.z = blockMax.z + this.colliderHalfWidth;
-              }
-              collisionResolved = true;
-              break;
-            }
-          }
-          if (collisionResolved) break;
-        }
-        if (collisionResolved) break;
-      }
-      if (collisionResolved) break;
-    }
-
-    this.renderer.waterShader.enabled = waterShader;
-    return collisionResolved;
-  }
 }
