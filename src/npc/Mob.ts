@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ChunkManager } from '../world/ChunkManager';
 import { PathfindingManager } from './PathfindingManager';
 import { VoxelType } from '../world/TerrainGenerator';
+import { processCollisionsAndEnvironment } from '../world/Physics';
 
 export abstract class Mob {
   public position: THREE.Vector3;
@@ -21,6 +22,10 @@ export abstract class Mob {
   // Basic physics parameters
   protected readonly gravity: number = 25;
   protected readonly maxVerticalVelocity: number = 50;
+  protected readonly colliderHalfWidth: number = 0.3;
+  protected readonly colliderHeight: number = 1.6;
+  protected readonly epsilon: number = 0.001;
+  protected tempVec: THREE.Vector3 = new THREE.Vector3();
 
   constructor(position: THREE.Vector3, chunkManager: ChunkManager, pathManager: PathfindingManager) {
     this.position = position.clone();
@@ -89,7 +94,6 @@ export abstract class Mob {
           // Pathfinding already ensures there are no obstacles ahead.
           this.velocity.copy(step);
           this.position.copy(newPos);
-          this.mesh.position.copy(this.position);
         } else {
           // force a new path on next frame
           this.path = [];
@@ -98,32 +102,33 @@ export abstract class Mob {
       }
     }
 
-    // Simple ground verification to simulate gravity
-    const below = this.chunkManager.getVoxelType(
-      Math.floor(this.position.x),
-      Math.floor(this.position.y) - 1,
-      Math.floor(this.position.z)
+    // Apply simple gravity
+    this.velocity.y -= this.gravity * delta;
+    this.velocity.y = Math.max(
+      Math.min(this.velocity.y, this.maxVerticalVelocity),
+      -this.maxVerticalVelocity
     );
+    this.position.y += this.velocity.y * delta;
 
-    if (below === null || below === VoxelType.AIR) {
-      this.onFloor = false;
-      this.velocity.y -= this.gravity * delta;
-      this.velocity.y = Math.max(
-        Math.min(this.velocity.y, this.maxVerticalVelocity),
-        -this.maxVerticalVelocity
+    // Resolve collisions and update environment state
+    const maxIterations = 10;
+    let iterations = 0;
+    while (iterations < maxIterations) {
+      const res = processCollisionsAndEnvironment(
+        this.position,
+        this.velocity,
+        this.chunkManager.getLoadedChunks(),
+        null,
+        this.colliderHalfWidth,
+        this.colliderHeight,
+        this.epsilon,
+        this.tempVec
       );
-      this.position.y += this.velocity.y * delta;
-    } else {
-      this.onFloor = true;
-      this.velocity.y = 0;
+      this.onFloor = res.onFloor;
+      this.onWater = res.onWater;
+      if (!res.collided) break;
+      iterations++;
     }
-
-    this.onWater =
-      this.chunkManager.getVoxelType(
-        Math.floor(this.position.x),
-        Math.floor(this.position.y),
-        Math.floor(this.position.z)
-      ) === VoxelType.WATER;
 
     this.mesh.position.copy(this.position);
   }
