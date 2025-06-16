@@ -1,5 +1,6 @@
 import { SimplexNoiseGenerator } from '../utils/SimpleNoiseGenerator';
 import * as THREE from 'three';
+import { TerrainConfig } from './TerrainConfig';
 
 export enum VoxelType {
   AIR = 0,
@@ -18,47 +19,113 @@ export enum VoxelType {
   BEDROCK
 }
 
+const DEFAULT_CONFIG: Required<TerrainConfig> = {
+  maxHeight: 256,
+  seaLevel: 48,
+  baseFrequency: 0.001,
+  baseAmplitude: 5,
+  mountainFrequency: 0.002,
+  mountainThreshold: 0.6,
+  mountainAmplitude: 400,
+  oceanFrequency: 0.001,
+  oceanThreshold: 0.65,
+  oceanAmplitude: 120,
+  detailFrequency: 0.06,
+  detailAmplitude: 6,
+  tempFrequency: 0.0125,
+  rainFrequency: 0.01,
+  rainAmplitude: 1,
+  treeFrequency: 0.15,
+  caveCount: 3,
+  minCaveLength: 50,
+  maxCaveLength: 150,
+  baseCaveRadius: 2,
+  octaves: 4,
+  persistence: 3,
+  lacunarity: 2.3,
+  oceanFloorHeight: 20,
+  prairieMaxHeight: 80,
+};
+
 export class TerrainGenerator {
-  private readonly maxHeight: number = 256;
-  private readonly seaLevel: number = 48;
+  private readonly maxHeight: number;
+  private readonly seaLevel: number;
 
-  private readonly baseFrequency: number = 0.001;
-  private readonly baseAmplitude: number = 5;
+  private readonly baseFrequency: number;
+  private readonly baseAmplitude: number;
 
-  private readonly mountainFrequency: number = 0.002;
-  private readonly mountainThreshold: number = 0.6;
-  private readonly mountainAmplitude: number = 400;
+  private readonly mountainFrequency: number;
+  private readonly mountainThreshold: number;
+  private readonly mountainAmplitude: number;
 
-  private readonly oceanFrequency: number = 0.001;
-  private readonly oceanThreshold: number = 0.65;
-  private readonly oceanAmplitude: number = 120;
+  private readonly oceanFrequency: number;
+  private readonly oceanThreshold: number;
+  private readonly oceanAmplitude: number;
 
-  private readonly detailFrequency: number = 0.06;
-  private readonly detailAmplitude: number = 6;
+  private readonly detailFrequency: number;
+  private readonly detailAmplitude: number;
 
-  private readonly tempFrequency: number = 0.0125;
+  private readonly tempFrequency: number;
 
-  private readonly rainFrequency: number = 0.01;
-  private readonly rainAmplitude: number = 1;
+  private readonly rainFrequency: number;
+  private readonly rainAmplitude: number;
 
-  private readonly treeFrequency: number = 0.15;
+  private readonly treeFrequency: number;
 
-  private readonly caveCount: number = 3;
-  private readonly minCaveLength: number = 50;
-  private readonly maxCaveLength: number = 150;
-  private readonly baseCaveRadius: number = 2;
+  private readonly caveCount: number;
+  private readonly minCaveLength: number;
+  private readonly maxCaveLength: number;
+  private readonly baseCaveRadius: number;
 
-  private octaves: number = 4;
-  private persistence: number = 3;
-  private lacunarity: number = 2.3;
+  private octaves: number;
+  private persistence: number;
+  private lacunarity: number;
 
-  private oceanFloorHeight: number = 20;
-  private prairieMaxHeight: number = 80;
+  private oceanFloorHeight: number;
+  private prairieMaxHeight: number;
 
 
   private noiseGen: SimplexNoiseGenerator;
 
-  constructor(seed: string | null) {
+  constructor(seed: string | null, config: TerrainConfig = {}) {
+    const cfg = { ...DEFAULT_CONFIG, ...config };
+
+    this.maxHeight = cfg.maxHeight;
+    this.seaLevel = cfg.seaLevel;
+
+    this.baseFrequency = cfg.baseFrequency;
+    this.baseAmplitude = cfg.baseAmplitude;
+
+    this.mountainFrequency = cfg.mountainFrequency;
+    this.mountainThreshold = cfg.mountainThreshold;
+    this.mountainAmplitude = cfg.mountainAmplitude;
+
+    this.oceanFrequency = cfg.oceanFrequency;
+    this.oceanThreshold = cfg.oceanThreshold;
+    this.oceanAmplitude = cfg.oceanAmplitude;
+
+    this.detailFrequency = cfg.detailFrequency;
+    this.detailAmplitude = cfg.detailAmplitude;
+
+    this.tempFrequency = cfg.tempFrequency;
+
+    this.rainFrequency = cfg.rainFrequency;
+    this.rainAmplitude = cfg.rainAmplitude;
+
+    this.treeFrequency = cfg.treeFrequency;
+
+    this.caveCount = cfg.caveCount;
+    this.minCaveLength = cfg.minCaveLength;
+    this.maxCaveLength = cfg.maxCaveLength;
+    this.baseCaveRadius = cfg.baseCaveRadius;
+
+    this.octaves = cfg.octaves;
+    this.persistence = cfg.persistence;
+    this.lacunarity = cfg.lacunarity;
+
+    this.oceanFloorHeight = cfg.oceanFloorHeight;
+    this.prairieMaxHeight = cfg.prairieMaxHeight;
+
     this.noiseGen = new SimplexNoiseGenerator(seed);
   }
 
@@ -68,6 +135,10 @@ export class TerrainGenerator {
 
   public getSeaLevel(): number {
     return this.seaLevel;
+  }
+
+  public getMaxHeight(): number {
+    return this.maxHeight;
   }
 
   private computeTerrainProperties(worldX: number, worldZ: number, persistenceVariance: number): { height: number, temperature: number, rainfall: number } {
@@ -110,15 +181,14 @@ export class TerrainGenerator {
     return { height: Math.floor(finalHeight), temperature, rainfall };
   }
 
-  private initializeChunk(size: number): VoxelType[][][] {
-    const data: VoxelType[][][] = [];
-    for (let x = 0; x < size; x++) {
-      data[x] = [];
-      for (let y = 0; y < this.maxHeight; y++) {
-        data[x][y] = new Array(size).fill(VoxelType.AIR);
-      }
-    }
+  private initializeChunk(size: number): Uint8Array {
+    const data = new Uint8Array(size * this.maxHeight * size);
+    data.fill(VoxelType.AIR);
     return data;
+  }
+
+  private index(x: number, y: number, z: number, size: number): number {
+    return x * this.maxHeight * size + y * size + z;
   }
 
   private generateHeightMap(chunkX: number, chunkZ: number, size: number): { height: number, temperature: number, rainfall: number, river: boolean }[][] {
@@ -135,32 +205,32 @@ export class TerrainGenerator {
     return map;
   }
 
-  private terrainShaping(data: VoxelType[][][], heightMap: { height: number }[][], size: number): void {
+  private terrainShaping(data: Uint8Array, heightMap: { height: number }[][], size: number): void {
     for (let x = 0; x < size; x++) {
       for (let z = 0; z < size; z++) {
         const { height } = heightMap[x][z];
-        data[x][0][z] = VoxelType.BEDROCK;
+        data[this.index(x, 0, z, size)] = VoxelType.BEDROCK;
         for (let y = 1; y <= height; y++) {
-          data[x][y][z] = VoxelType.STONE;
+          data[this.index(x, y, z, size)] = VoxelType.STONE;
         }
       }
     }
   }
 
-  private waterFilling(data: VoxelType[][][], heightMap: { height: number }[][], size: number): void {
+  private waterFilling(data: Uint8Array, heightMap: { height: number }[][], size: number): void {
     for (let x = 0; x < size; x++) {
       for (let z = 0; z < size; z++) {
         const { height } = heightMap[x][z];
         if (height < this.seaLevel) {
           for (let y = height + 1; y <= this.seaLevel && y < this.maxHeight; y++) {
-            data[x][y][z] = VoxelType.WATER;
+            data[this.index(x, y, z, size)] = VoxelType.WATER;
           }
         }
       }
     }
   }
 
-  private clouds(data: VoxelType[][][], chunkX: number, chunkZ: number, size: number): void {
+  private clouds(data: Uint8Array, chunkX: number, chunkZ: number, size: number): void {
     const cloudFrequency = 0.1;
     const quantStep = 0.2;
     const threshold = 0.6;
@@ -179,7 +249,7 @@ export class TerrainGenerator {
         // Si el valor supera el umbral, se asigna un voxel de nube en la capa superior
         if (noiseVal > threshold) {
           // Suponiendo que queremos las nubes en la última capa (podrías ajustar la altura)
-          data[x][this.maxHeight - 1][z] = VoxelType.CLOUD;
+          data[this.index(x, this.maxHeight - 1, z, size)] = VoxelType.CLOUD;
         }
       }
     }
@@ -226,7 +296,7 @@ export class TerrainGenerator {
     return { top: VoxelType.SNOW, filler: VoxelType.SNOW, thickness: 1 };
   }
 
-  private surfaceDecoration(data: VoxelType[][][], heightMap: { height: number, temperature: number, rainfall: number }[][], chunkX: number, chunkZ: number, size: number): void {
+  private surfaceDecoration(data: Uint8Array, heightMap: { height: number, temperature: number, rainfall: number }[][], chunkX: number, chunkZ: number, size: number): void {
     for (let x = 0; x < size; x++) {
       for (let z = 0; z < size; z++) {
         const worldX = x + chunkX * size;
@@ -236,13 +306,13 @@ export class TerrainGenerator {
         const deco = this.getSurfaceDecoration(worldX, worldZ, height, temperature, rainfall);
         const start = Math.max(0, height - deco.thickness + 1);
         for (let y = start; y <= height; y++) {
-          data[x][y][z] = (y === height) ? deco.top : deco.filler;
+          data[this.index(x, y, z, size)] = (y === height) ? deco.top : deco.filler;
         }
       }
     }
   }
 
-  public generateChunk(chunkX: number, chunkZ: number, size: number): VoxelType[][][] {
+  public generateChunk(chunkX: number, chunkZ: number, size: number): Uint8Array {
     const data = this.initializeChunk(size);
     const heightMap = this.generateHeightMap(chunkX, chunkZ, size);
     this.terrainShaping(data, heightMap, size);
@@ -254,7 +324,7 @@ export class TerrainGenerator {
     return data;
   }
 
-  private carveCaves(data: VoxelType[][][], size: number, chunkX: number, chunkZ: number, heightMap: { height: number, temperature: number, rainfall: number }[][]): void {
+  private carveCaves(data: Uint8Array, size: number, chunkX: number, chunkZ: number, heightMap: { height: number, temperature: number, rainfall: number }[][]): void {
     let maxHeight = this.seaLevel;
     for (let x = 0; x < size; x++) {
       for (let z = 0; z < size; z++) {
@@ -297,8 +367,8 @@ export class TerrainGenerator {
                 const nx = xi + dx;
                 const ny = yi + dy;
                 const nz = zi + dz;
-                if (nx >= 0 && nx < size && ny >= 0 && ny < this.maxHeight && nz >= 0 && nz < size && data[nx][ny][nz] !== VoxelType.WATER && data[nx][ny][nz] !== VoxelType.BEDROCK) {
-                  data[nx][ny][nz] = VoxelType.AIR;
+                if (nx >= 0 && nx < size && ny >= 0 && ny < this.maxHeight && nz >= 0 && nz < size && data[this.index(nx, ny, nz, size)] !== VoxelType.WATER && data[this.index(nx, ny, nz, size)] !== VoxelType.BEDROCK) {
+                  data[this.index(nx, ny, nz, size)] = VoxelType.AIR;
                 }
               }
             }
@@ -315,18 +385,18 @@ export class TerrainGenerator {
     }
   }
 
-  private spawnTrees(data: VoxelType[][][], size: number, chunkX: number, chunkZ: number): void {
+  private spawnTrees(data: Uint8Array, size: number, chunkX: number, chunkZ: number): void {
     for (let x = 0; x < size; x++) {
       for (let z = 0; z < size; z++) {
         let topY = -1;
         for (let y = this.maxHeight - 1; y >= 0; y--) {
-          if (data[x][y][z] !== VoxelType.AIR) {
+          if (data[this.index(x, y, z, size)] !== VoxelType.AIR) {
             topY = y;
             break;
           }
         }
         if (topY === -1) continue;
-        if (data[x][topY][z] !== VoxelType.GRASS) continue;
+        if (data[this.index(x, topY, z, size)] !== VoxelType.GRASS) continue;
         const treeNoise = this.noiseGen.noise(x * 1000 * topY, z * 1000 * topY);
         const treeNoiseType = this.noiseGen.noise(chunkX * 0.01 + 5000, chunkZ * 0.01 + 5000);
         if (treeNoise > this.treeFrequency) continue;
@@ -335,7 +405,7 @@ export class TerrainGenerator {
         const trunkHeight = Math.floor(this.mapNoise(trunkNoise, 4, 11));
         if (topY + trunkHeight + 2 >= this.maxHeight) continue;
         for (let y = topY + 1; y <= topY + trunkHeight; y++) {
-          data[x][y][z] = VoxelType.TRUNK;
+          data[this.index(x, y, z, size)] = VoxelType.TRUNK;
         }
         const canopyNoise = this.noiseGen.noise(x * 2000, z * 2000);
         const canopyHeight = Math.floor(this.mapNoise(canopyNoise, 2, 4));
@@ -349,20 +419,20 @@ export class TerrainGenerator {
               if (nx < 0 || nx >= size || nz < 0 || nz >= size) continue;
               const leafNoise = this.noiseGen.noise(dx * 3000 * topY, dz * 3000 * topY);
               if (leafNoise < 0.15) continue;
-              if (data[nx][canopyY][nz] === VoxelType.AIR) {
+              if (data[this.index(nx, canopyY, nz, size)] === VoxelType.AIR) {
                 if (trunkHeight < 6) {
-                  data[nx][canopyY][nz] = VoxelType.LEAVES_YOUNG;
+                  data[this.index(nx, canopyY, nz, size)] = VoxelType.LEAVES_YOUNG;
                   continue;
                 }
                 if (trunkHeight > 9) {
-                  data[nx][canopyY][nz] = VoxelType.LEAVES_AUTUMN;
+                  data[this.index(nx, canopyY, nz, size)] = VoxelType.LEAVES_AUTUMN;
                   continue;
                 }
                 if (treeNoiseType < 0.12 && treeNoiseType > 0.10) {
-                  data[nx][canopyY][nz] = VoxelType.LEAVES_CHERRY;
+                  data[this.index(nx, canopyY, nz, size)] = VoxelType.LEAVES_CHERRY;
                   continue;
                 }
-                data[nx][canopyY][nz] = VoxelType.LEAVES;
+                data[this.index(nx, canopyY, nz, size)] = VoxelType.LEAVES;
               }
             }
           }

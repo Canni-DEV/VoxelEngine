@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Chunk } from './Chunk';
 import { TerrainGenerator, VoxelType } from './TerrainGenerator';
+import { TerrainConfig } from './TerrainConfig';
 
 export class ChunkManager {
   private scene: THREE.Scene;
@@ -15,21 +16,23 @@ export class ChunkManager {
 
   private loadCounter: number = 2;
   private firstChunksLoaded: boolean = false;
+  private currentChunkX: number = 0;
+  private currentChunkZ: number = 0;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, config: TerrainConfig = {}) {
     this.scene = scene;
     this.chunks = new Map();
     this.modifiedChunks = new Map();
     const url = new URL(location.href);
-    this.terrainGenerator = new TerrainGenerator(url.searchParams.get("seed"));
+    this.terrainGenerator = new TerrainGenerator(url.searchParams.get("seed"), config);
   }
 
   public update(playerPosition: THREE.Vector3) {
     //this.updateShaders();
-    const currentChunkX = Math.floor(playerPosition.x / this.chunkSize);
-    const currentChunkZ = Math.floor(playerPosition.z / this.chunkSize);
-    this.deleteChunks(currentChunkX, currentChunkZ);
-    this.SetChunksToLoad(currentChunkX, currentChunkZ);
+    this.currentChunkX = Math.floor(playerPosition.x / this.chunkSize);
+    this.currentChunkZ = Math.floor(playerPosition.z / this.chunkSize);
+    this.deleteChunks(this.currentChunkX, this.currentChunkZ);
+    this.setChunksToLoad(this.currentChunkX, this.currentChunkZ);
 
     if (--this.loadCounter <= 0) {
       this.loadNextChunk();
@@ -50,6 +53,21 @@ export class ChunkManager {
     return this.firstChunksLoaded;
   }
 
+  public getRenderDistance(): number {
+    return this.renderDistance;
+  }
+
+  public getPlayerChunk(): THREE.Vector2 {
+    return new THREE.Vector2(this.currentChunkX, this.currentChunkZ);
+  }
+
+  public requestChunkLoad(chunkX: number, chunkZ: number): void {
+    const key = this.getChunkKey(chunkX, chunkZ);
+    if (this.chunks.has(key) || this.loadingChunksKeys.find(c => c.x === chunkX && c.y === chunkZ)) return;
+    this.loadingChunksKeys.push(new THREE.Vector2(chunkX, chunkZ));
+    this.loadingChunks = true;
+  }
+
   private updateShaders(): void {
     const time = performance.now() / 1000;
     this.chunks.forEach(chunk => {
@@ -68,7 +86,7 @@ export class ChunkManager {
     });
   }
 
-  private SetChunksToLoad(currentChunkX: number, currentChunkZ: number) {
+  private setChunksToLoad(currentChunkX: number, currentChunkZ: number) {
     if (this.loadingChunks) return;
 
     this.loadingChunksKeys.length = 0;
@@ -176,6 +194,9 @@ export class ChunkManager {
   }
 
   private isValidCandidate(x: number, y: number, z: number): boolean {
+    // Verifica que los voxeles adyacentes estén libres. Esto incluye las
+    // cuatro diagonales, asegurando suficiente espacio alrededor del punto de
+    // spawn potencial.
     return this.isVoxelFree(x, y, z, VoxelType.AIR) &&
       this.isVoxelFree(x, y + 1, z, VoxelType.AIR) &&
       this.isVoxelFree(x + 1, y, z, VoxelType.AIR) &&
@@ -183,9 +204,9 @@ export class ChunkManager {
       this.isVoxelFree(x, y, z + 1, VoxelType.AIR) &&
       this.isVoxelFree(x, y, z - 1, VoxelType.AIR) &&
       this.isVoxelFree(x + 1, y, z + 1, VoxelType.AIR) &&
+      this.isVoxelFree(x + 1, y, z - 1, VoxelType.AIR) &&
+      this.isVoxelFree(x - 1, y, z + 1, VoxelType.AIR) &&
       this.isVoxelFree(x - 1, y, z - 1, VoxelType.AIR) &&
-      this.isVoxelFree(x - 1, y, z - 1, VoxelType.AIR) &&
-      this.isVoxelFree(x + 1, y, z + 1, VoxelType.AIR) &&
       this.isVoxelFree(x, y - 1, z, VoxelType.GRASS);
   }
 
@@ -197,7 +218,19 @@ export class ChunkManager {
     const localX = globalX - chunk.x * this.chunkSize;
     const localZ = globalZ - chunk.z * this.chunkSize;
     if (localX < 0 || localX >= chunk.size || localZ < 0 || localZ >= chunk.size) return false;
-    if (globalY < 0 || globalY >= chunk.terrainData[localX].length) return false;
-    return chunk.terrainData[localX][globalY][localZ] === voxelType;
+    if (globalY < 0 || globalY >= chunk.maxHeight) return false;
+    return chunk.getVoxel(localX, globalY, localZ) === voxelType;
+  }
+
+  public getVoxelType(globalX: number, globalY: number, globalZ: number): VoxelType | null {
+    const chunkX = Math.floor(globalX / this.chunkSize);
+    const chunkZ = Math.floor(globalZ / this.chunkSize);
+    const chunk = this.getChunkAt(chunkX, chunkZ);
+    if (!chunk) return null;
+    const localX = globalX - chunk.x * this.chunkSize;
+    const localZ = globalZ - chunk.z * this.chunkSize;
+    if (localX < 0 || localX >= chunk.size || localZ < 0 || localZ >= chunk.size) return null;
+    if (globalY < 0 || globalY >= chunk.maxHeight) return null;
+    return chunk.getVoxel(localX, globalY, localZ);
   }
 }

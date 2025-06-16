@@ -6,10 +6,30 @@ import { UIManager } from './ui/UIManager';
 import { Controls } from './player/Controls';
 import { InputManager } from './player/InputManager';
 import { ChunkManager } from './world/ChunkManager';
+import { TerrainConfig } from './world/TerrainConfig';
+import * as THREE from 'three';
 
 async function init() {
   const renderer = new Renderer();
-  const chunkManager = new ChunkManager(renderer.scene);
+  const url = new URL(location.href);
+  const terrainParams = [
+    'maxHeight', 'seaLevel', 'baseFrequency', 'baseAmplitude',
+    'mountainFrequency', 'mountainThreshold', 'mountainAmplitude',
+    'oceanFrequency', 'oceanThreshold', 'oceanAmplitude',
+    'detailFrequency', 'detailAmplitude', 'tempFrequency',
+    'rainFrequency', 'rainAmplitude', 'treeFrequency',
+    'caveCount', 'minCaveLength', 'maxCaveLength', 'baseCaveRadius',
+    'octaves', 'persistence', 'lacunarity',
+    'oceanFloorHeight', 'prairieMaxHeight'
+  ];
+  const terrainConfig: TerrainConfig = {};
+  for (const p of terrainParams) {
+    const val = url.searchParams.get(p);
+    if (val !== null) {
+      (terrainConfig as any)[p] = parseFloat(val);
+    }
+  }
+  const chunkManager = new ChunkManager(renderer.scene, terrainConfig);
   const world = new World(renderer, chunkManager);
   const player = new Player(renderer, world);
   const inputManager = new InputManager(renderer.camera, renderer.scene, chunkManager);
