@@ -12,6 +12,7 @@ interface Node {
 }
 
 export class Pathfinder {
+  private missingChunks: boolean = false;
   constructor(private chunkManager: ChunkManager) {}
 
   private key(x: number, y: number, z: number): string {
@@ -32,7 +33,7 @@ export class Pathfinder {
     if (ground === null) {
       if (allowUnloaded && this.withinRenderDistance(chunkX, chunkZ)) {
         this.chunkManager.requestChunkLoad(chunkX, chunkZ);
-        return true;
+        this.missingChunks = true;
       }
       return false;
     }
@@ -44,14 +45,15 @@ export class Pathfinder {
     if (head === null || above === null) {
       if (allowUnloaded && this.withinRenderDistance(chunkX, chunkZ)) {
         this.chunkManager.requestChunkLoad(chunkX, chunkZ);
-        return true;
+        this.missingChunks = true;
       }
       return false;
     }
     return head === VoxelType.AIR && above === VoxelType.AIR;
   }
 
-  public findPath(start: THREE.Vector3, goal: THREE.Vector3, maxSteps = 2048): THREE.Vector3[] {
+  public findPath(start: THREE.Vector3, goal: THREE.Vector3, maxSteps = 2048): THREE.Vector3[] | null {
+    this.missingChunks = false;
     const sx = Math.floor(start.x);
     const sy = Math.floor(start.y);
     const sz = Math.floor(start.z);
@@ -134,6 +136,9 @@ export class Pathfinder {
         n = n.parent;
       }
       path.reverse();
+    }
+    if (this.missingChunks) {
+      return null;
     }
     return path;
   }
