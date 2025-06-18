@@ -35,7 +35,12 @@ export class PathfindingManager {
     this.processing = true;
     try {
       const path = this.pathfinder.findPath(start, goal);
-      resolve(path);
+      if (path === null) {
+        // retry later when chunks load
+        this.queue.push({ start, goal, resolve, reject });
+      } else {
+        resolve(path);
+      }
     } catch (err) {
       reject(err);
     } finally {
