@@ -51,7 +51,12 @@ export class Pathfinder {
     return head === VoxelType.AIR && above === VoxelType.AIR;
   }
 
-  public findPath(start: THREE.Vector3, goal: THREE.Vector3, maxSteps = 2048): THREE.Vector3[] {
+  public findPath(
+    start: THREE.Vector3,
+    goal: THREE.Vector3,
+    maxSteps = 2048,
+    stepHeight = 1
+  ): THREE.Vector3[] {
     const sx = Math.floor(start.x);
     const sy = Math.floor(start.y);
     const sz = Math.floor(start.z);
@@ -99,11 +104,11 @@ export class Pathfinder {
       }
 
       for (const d of dirs) {
-        for (let dy = -1; dy <= 1; dy++) {
+        for (let dy = -stepHeight; dy <= stepHeight; dy++) {
           const nx = current.pos.x + d.x;
           const ny = current.pos.y + dy;
           const nz = current.pos.z + d.z;
-          if (Math.abs(ny - current.pos.y) > 1) continue;
+          if (Math.abs(ny - current.pos.y) > stepHeight) continue;
           if (!this.isWalkable(nx, ny, nz, true)) continue;
 
           const k = this.key(nx, ny, nz);

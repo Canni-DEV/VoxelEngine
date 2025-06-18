@@ -18,6 +18,7 @@ export abstract class Mob {
   protected chunkManager: ChunkManager;
   protected timeSinceLastPath: number = 0;
   protected recomputeInterval: number = 0.5;
+  protected maxStepHeight: number;
 
   // Basic physics parameters
   protected readonly gravity: number = 25;
@@ -27,10 +28,16 @@ export abstract class Mob {
   protected readonly epsilon: number = 0.001;
   protected tempVec: THREE.Vector3 = new THREE.Vector3();
 
-  constructor(position: THREE.Vector3, chunkManager: ChunkManager, pathManager: PathfindingManager) {
+  constructor(
+    position: THREE.Vector3,
+    chunkManager: ChunkManager,
+    pathManager: PathfindingManager,
+    maxStepHeight: number = 1
+  ) {
     this.position = position.clone();
     this.chunkManager = chunkManager;
     this.pathManager = pathManager;
+    this.maxStepHeight = maxStepHeight;
     this.mesh = this.createMesh();
     this.mesh.position.copy(this.position);
   }
@@ -47,7 +54,7 @@ export abstract class Mob {
       !this.pendingPath
     ) {
       this.pendingPath = this.pathManager
-        .requestPath(this.position, target)
+        .requestPath(this.position, target, this.maxStepHeight)
         .then(path => {
           this.path = path;
           this.pathIndex = 0;
