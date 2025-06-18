@@ -130,7 +130,10 @@ export class Pathfinder {
     if (targetNode) {
       let n: Node | null = targetNode;
       while (n) {
-        path.push(n.pos.clone());
+        //path.push(n.pos.clone());
+        path.push(
+          new THREE.Vector3(n.pos.x + 0.5, n.pos.y, n.pos.z + 0.5)
+        );
         n = n.parent;
       }
       path.reverse();
