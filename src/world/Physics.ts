@@ -158,6 +158,7 @@ export function processCollisionsAndEnvironment(
             } else {
               position.x = blockMax.x + colliderHalfWidth;
             }
+            velocity.x = 0;
             collisionResolved = true;
             break;
           } else if (minOverlap === overlapY) {
@@ -175,6 +176,7 @@ export function processCollisionsAndEnvironment(
             } else {
               position.z = blockMax.z + colliderHalfWidth;
             }
+            velocity.z = 0;
             collisionResolved = true;
             break;
           }
