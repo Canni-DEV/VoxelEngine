@@ -30,6 +30,7 @@ async function init() {
     }
   }
   const chunkManager = new ChunkManager(renderer.scene, terrainConfig);
+  chunkManager.setWorldText("HOLA MUNDO", new THREE.Vector3(0, 80, 0), 1);
   const world = new World(renderer, chunkManager);
   const player = new Player(renderer, world);
   const inputManager = new InputManager(renderer.camera, renderer.scene, chunkManager);
