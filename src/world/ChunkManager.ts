@@ -3,6 +3,198 @@ import { Chunk } from './Chunk';
 import { TerrainGenerator, VoxelType } from './TerrainGenerator';
 import { TerrainConfig } from './TerrainConfig';
 
+const VOXEL_FONT: Record<string, string[]> = {
+  'A': [
+    " XXX ",
+    "X   X",
+    "XXXXX",
+    "X   X",
+    "X   X"
+  ],
+  'B': [
+    "XXXX ",
+    "X   X",
+    "XXXX ",
+    "X   X",
+    "XXXX "
+  ],
+  'C': [
+    " XXXX",
+    "X    ",
+    "X    ",
+    "X    ",
+    " XXXX"
+  ],
+  'D': [
+    "XXXX ",
+    "X   X",
+    "X   X",
+    "X   X",
+    "XXXX "
+  ],
+  'E': [
+    "XXXXX",
+    "X    ",
+    "XXX  ",
+    "X    ",
+    "XXXXX"
+  ],
+  'F': [
+    "XXXXX",
+    "X    ",
+    "XXX  ",
+    "X    ",
+    "X    "
+  ],
+  'G': [
+    " XXXX",
+    "X    ",
+    "X XXX",
+    "X   X",
+    " XXXX"
+  ],
+  'H': [
+    "X   X",
+    "X   X",
+    "XXXXX",
+    "X   X",
+    "X   X"
+  ],
+  'I': [
+    "XXXXX",
+    "  X  ",
+    "  X  ",
+    "  X  ",
+    "XXXXX"
+  ],
+  'J': [
+    "XXXXX",
+    "   X ",
+    "   X ",
+    "X  X ",
+    " XX  "
+  ],
+  'K': [
+    "X   X",
+    "X  X ",
+    "XXX  ",
+    "X  X ",
+    "X   X"
+  ],
+  'L': [
+    "X    ",
+    "X    ",
+    "X    ",
+    "X    ",
+    "XXXXX"
+  ],
+  'M': [
+    "X   X",
+    "XX XX",
+    "X X X",
+    "X   X",
+    "X   X"
+  ],
+  'N': [
+    "X   X",
+    "XX  X",
+    "X X X",
+    "X  XX",
+    "X   X"
+  ],
+  'O': [
+    " XXX ",
+    "X   X",
+    "X   X",
+    "X   X",
+    " XXX "
+  ],
+  'P': [
+    "XXXX ",
+    "X   X",
+    "XXXX ",
+    "X    ",
+    "X    "
+  ],
+  'Q': [
+    " XXX ",
+    "X   X",
+    "X   X",
+    "X  XX",
+    " XXXX"
+  ],
+  'R': [
+    "XXXX ",
+    "X   X",
+    "XXXX ",
+    "X  X ",
+    "X   X"
+  ],
+  'S': [
+    " XXXX",
+    "X    ",
+    " XXX ",
+    "    X",
+    "XXXX "
+  ],
+  'T': [
+    "XXXXX",
+    "  X  ",
+    "  X  ",
+    "  X  ",
+    "  X  "
+  ],
+  'U': [
+    "X   X",
+    "X   X",
+    "X   X",
+    "X   X",
+    " XXX "
+  ],
+  'V': [
+    "X   X",
+    "X   X",
+    "X   X",
+    " X X ",
+    "  X  "
+  ],
+  'W': [
+    "X   X",
+    "X   X",
+    "X X X",
+    "XX XX",
+    "X   X"
+  ],
+  'X': [
+    "X   X",
+    " X X ",
+    "  X  ",
+    " X X ",
+    "X   X"
+  ],
+  'Y': [
+    "X   X",
+    " X X ",
+    "  X  ",
+    "  X  ",
+    "  X  "
+  ],
+  'Z': [
+    "XXXXX",
+    "   X ",
+    "  X  ",
+    " X   ",
+    "XXXXX"
+  ],
+  ' ': [
+    "     ",
+    "     ",
+    "     ",
+    "     ",
+    "     "
+  ]
+};
+
 export class ChunkManager {
   private scene: THREE.Scene;
   private chunks: Map<string, Chunk>;
@@ -18,6 +210,11 @@ export class ChunkManager {
   private firstChunksLoaded: boolean = false;
   private currentChunkX: number = 0;
   private currentChunkZ: number = 0;
+
+  private worldText: string | null = null;
+  private textPosition: THREE.Vector3 = new THREE.Vector3();
+  private textScale: number = 1;
+  private textGenerated: boolean = false;
 
   constructor(scene: THREE.Scene, config: TerrainConfig = {}) {
     this.scene = scene;
@@ -66,6 +263,12 @@ export class ChunkManager {
     if (this.chunks.has(key) || this.loadingChunksKeys.find(c => c.x === chunkX && c.y === chunkZ)) return;
     this.loadingChunksKeys.push(new THREE.Vector2(chunkX, chunkZ));
     this.loadingChunks = true;
+  }
+
+  public setWorldText(text: string, position: THREE.Vector3, scale: number): void {
+    this.worldText = text;
+    this.textPosition = position.clone();
+    this.textScale = Math.max(1, Math.floor(scale));
   }
 
   private updateShaders(): void {
@@ -120,6 +323,10 @@ export class ChunkManager {
     if (!chunkKey) {
       this.loadingChunks = false;
       this.firstChunksLoaded = true;
+      if (!this.textGenerated) {
+        this.generateWorldText();
+        this.textGenerated = true;
+      }
       return;
     }
     const key = this.getChunkKey(chunkKey.x, chunkKey.y);
@@ -220,6 +427,49 @@ export class ChunkManager {
     if (localX < 0 || localX >= chunk.size || localZ < 0 || localZ >= chunk.size) return false;
     if (globalY < 0 || globalY >= chunk.maxHeight) return false;
     return chunk.getVoxel(localX, globalY, localZ) === voxelType;
+  }
+
+  private setVoxel(globalX: number, globalY: number, globalZ: number, type: VoxelType): void {
+    const chunkX = Math.floor(globalX / this.chunkSize);
+    const chunkZ = Math.floor(globalZ / this.chunkSize);
+    const chunk = this.getChunkAt(chunkX, chunkZ);
+    if (!chunk) return;
+    const localX = globalX - chunk.x * this.chunkSize;
+    const localZ = globalZ - chunk.z * this.chunkSize;
+    if (localX < 0 || localX >= chunk.size || localZ < 0 || localZ >= chunk.size) return;
+    if (globalY < 0 || globalY >= chunk.maxHeight) return;
+    chunk.updateVoxel(localX, globalY, localZ, type);
+  }
+
+  private generateWorldText(): void {
+    if (!this.worldText) return;
+    let cursorX = this.textPosition.x;
+    const baseY = this.textPosition.y;
+    const baseZ = this.textPosition.z;
+    const depth = this.textScale;
+    const text = this.worldText.toUpperCase();
+    for (const ch of text) {
+      const pattern = VOXEL_FONT[ch] || VOXEL_FONT[' '];
+      const height = pattern.length;
+      const width = pattern[0].length;
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          if (pattern[row][col] !== ' ') {
+            for (let sx = 0; sx < this.textScale; sx++) {
+              for (let sy = 0; sy < this.textScale; sy++) {
+                for (let sz = 0; sz < depth; sz++) {
+                  const x = Math.floor(cursorX + col * this.textScale + sx);
+                  const y = Math.floor(baseY + (height - 1 - row) * this.textScale + sy);
+                  const z = Math.floor(baseZ + sz);
+                  this.setVoxel(x, y, z, VoxelType.STONE);
+                }
+              }
+            }
+          }
+        }
+      }
+      cursorX += (width + 1) * this.textScale;
+    }
   }
 
   public getVoxelType(globalX: number, globalY: number, globalZ: number): VoxelType | null {
