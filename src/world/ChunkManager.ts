@@ -36,7 +36,10 @@ export class ChunkManager {
 
     if (--this.loadCounter <= 0) {
       this.loadNextChunk();
-      this.loadCounter = 2;
+      this.loadNextChunk();
+      this.loadNextChunk();
+      this.loadNextChunk();
+      this.loadCounter = 1;
     }
   }
 
