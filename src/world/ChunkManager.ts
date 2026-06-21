@@ -236,4 +236,60 @@ export class ChunkManager {
     if (globalY < 0 || globalY >= chunk.maxHeight) return null;
     return chunk.getVoxel(localX, globalY, localZ);
   }
+
+  /** True si el chunk que contiene la columna (x,z) mundial está cargado. */
+  public isChunkLoadedAtWorldXZ(globalX: number, globalZ: number): boolean {
+    const chunkX = Math.floor(globalX / this.chunkSize);
+    const chunkZ = Math.floor(globalZ / this.chunkSize);
+    return this.getChunkAt(chunkX, chunkZ) !== undefined;
+  }
+
+  /**
+   * Pies del mob (centro aprox.) sobre la primera superficie sólida caminable bajo (x,z).
+   * Ignora follaje y agua en la columna hasta encontrar suelo. Requiere chunk cargado.
+   */
+  public getSurfaceWalkableFeet(globalX: number, globalZ: number): THREE.Vector3 | null {
+    if (!this.isChunkLoadedAtWorldXZ(globalX, globalZ)) return null;
+    const x = Math.floor(globalX);
+    const z = Math.floor(globalZ);
+    const chunk = this.getChunkAt(Math.floor(x / this.chunkSize), Math.floor(z / this.chunkSize))!;
+    const maxY = chunk.maxHeight - 1;
+
+    for (let y = maxY; y > 0; y--) {
+      const surface = this.getVoxelType(x, y, z);
+      if (surface === null) return null;
+      if (surface === VoxelType.AIR || surface === VoxelType.CLOUD) continue;
+      if (surface === VoxelType.WATER) continue;
+      if (
+        surface === VoxelType.LEAVES ||
+        surface === VoxelType.LEAVES_AUTUMN ||
+        surface === VoxelType.LEAVES_YOUNG ||
+        surface === VoxelType.LEAVES_CHERRY
+      ) {
+        continue;
+      }
+      if (!ChunkManager.isSolidMobFloor(surface)) {
+        continue;
+      }
+      const feetY = y + 1;
+      const head = this.getVoxelType(x, feetY, z);
+      const above = this.getVoxelType(x, feetY + 1, z);
+      if (head === null || above === null) return null;
+      if (head !== VoxelType.AIR || above !== VoxelType.AIR) continue;
+      return new THREE.Vector3(x + 0.5, feetY, z + 0.5);
+    }
+    return null;
+  }
+
+  private static isSolidMobFloor(t: VoxelType): boolean {
+    return (
+      t !== VoxelType.AIR &&
+      t !== VoxelType.WATER &&
+      t !== VoxelType.CLOUD &&
+      t !== VoxelType.LEAVES &&
+      t !== VoxelType.LEAVES_AUTUMN &&
+      t !== VoxelType.LEAVES_YOUNG &&
+      t !== VoxelType.LEAVES_CHERRY
+    );
+  }
 }

@@ -3,6 +3,11 @@ import { ChunkManager } from '../world/ChunkManager';
 import { VoxelType } from '../world/TerrainGenerator';
 import { PriorityQueue } from '../utils/PriorityQueue';
 
+export interface PathFindOptions {
+  maxExpandSteps?: number;
+  maxTravelDistance?: number;
+}
+
 interface Node {
   pos: THREE.Vector3;
   g: number;
@@ -51,13 +56,66 @@ export class Pathfinder {
     return head === VoxelType.AIR && above === VoxelType.AIR;
   }
 
-  public findPath(start: THREE.Vector3, goal: THREE.Vector3, maxSteps = 2048): THREE.Vector3[] {
-    const sx = Math.floor(start.x);
-    const sy = Math.floor(start.y);
-    const sz = Math.floor(start.z);
-    const gx = Math.floor(goal.x);
-    const gy = Math.floor(goal.y);
-    const gz = Math.floor(goal.z);
+  /**
+   * Ajusta a un voxel caminable cercano (chunks cargados; sin tratar vacío como caminable).
+   */
+  public snapToNearbyWalkable(pos: THREE.Vector3, maxDelta: number): THREE.Vector3 | null {
+    const ox = Math.floor(pos.x);
+    const oy = Math.floor(pos.y);
+    const oz = Math.floor(pos.z);
+    const offsets: [number, number, number][] = [];
+    for (let dx = -maxDelta; dx <= maxDelta; dx++) {
+      for (let dy = -maxDelta; dy <= maxDelta; dy++) {
+        for (let dz = -maxDelta; dz <= maxDelta; dz++) {
+          offsets.push([dx, dy, dz]);
+        }
+      }
+    }
+    offsets.sort((a, b) => {
+      const da = a[0] * a[0] + a[1] * a[1] + a[2] * a[2];
+      const db = b[0] * b[0] + b[1] * b[1] + b[2] * b[2];
+      return da - db;
+    });
+    for (const [dx, dy, dz] of offsets) {
+      const x = ox + dx;
+      const y = oy + dy;
+      const z = oz + dz;
+      if (this.isWalkable(x, y, z, false)) {
+        return new THREE.Vector3(x, y, z);
+      }
+    }
+    return null;
+  }
+
+  private clampGoalTowardsStart(start: THREE.Vector3, goal: THREE.Vector3, maxTravel: number): THREE.Vector3 {
+    const out = goal.clone();
+    const dist = start.distanceTo(out);
+    if (dist <= maxTravel) return out;
+    out.sub(start).normalize().multiplyScalar(maxTravel).add(start);
+    return out;
+  }
+
+  public findPath(start: THREE.Vector3, goal: THREE.Vector3, options?: PathFindOptions): THREE.Vector3[] {
+    const maxSteps = options?.maxExpandSteps ?? 2048;
+    const maxTravel = options?.maxTravelDistance ?? 48;
+
+    const clampedGoal = this.clampGoalTowardsStart(start, goal, maxTravel);
+    const snappedStart = this.snapToNearbyWalkable(start, 4);
+    const snappedGoal = this.snapToNearbyWalkable(clampedGoal, 6);
+    if (!snappedStart || !snappedGoal) {
+      return [];
+    }
+
+    return this.runAStar(snappedStart, snappedGoal, maxSteps);
+  }
+
+  private runAStar(startVec: THREE.Vector3, goalVec: THREE.Vector3, maxSteps: number): THREE.Vector3[] {
+    const sx = Math.floor(startVec.x);
+    const sy = Math.floor(startVec.y);
+    const sz = Math.floor(startVec.z);
+    const gx = Math.floor(goalVec.x);
+    const gy = Math.floor(goalVec.y);
+    const gz = Math.floor(goalVec.z);
 
     const startNode: Node = {
       pos: new THREE.Vector3(sx, sy, sz),
@@ -84,7 +142,8 @@ export class Pathfinder {
       new THREE.Vector3(0, 0, -1)
     ];
 
-    while (open.size() > 0 && maxSteps-- > 0) {
+    let stepsLeft = maxSteps;
+    while (open.size() > 0 && stepsLeft-- > 0) {
       const current = open.pop()!;
 
       const cKey = this.key(current.pos.x, current.pos.y, current.pos.z);

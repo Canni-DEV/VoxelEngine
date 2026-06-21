@@ -8,7 +8,10 @@ export class Zombie extends Mob {
   private spawnPoint: THREE.Vector3;
   private wanderTarget: THREE.Vector3 | null = null;
   private readonly detectRange = 10;
+  private readonly loseRange = 16;
   private readonly wanderRadius = 5;
+  private readonly speedWander = 1.8;
+  private readonly speedChase = 2.8;
 
   constructor(position: THREE.Vector3, chunkManager: ChunkManager, pathManager: PathfindingManager) {
     super(position, chunkManager, pathManager);
@@ -39,37 +42,52 @@ export class Zombie extends Mob {
     return group;
   }
 
+  private pickWanderTarget(): void {
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * this.wanderRadius;
+      const wx = Math.floor(this.spawnPoint.x + Math.cos(angle) * dist);
+      const wz = Math.floor(this.spawnPoint.z + Math.sin(angle) * dist);
+      if (!this.chunkManager.isChunkLoadedAtWorldXZ(wx, wz)) continue;
+      const feet = this.chunkManager.getSurfaceWalkableFeet(wx, wz);
+      if (feet) {
+        this.wanderTarget = feet;
+        this.path = [];
+        this.pathIndex = 0;
+        return;
+      }
+    }
+    this.wanderTarget = this.spawnPoint.clone();
+  }
+
   public update(delta: number, playerPos: THREE.Vector3) {
     const distToPlayer = this.position.distanceTo(playerPos);
 
-    if (distToPlayer <= this.detectRange) {
-      if (this.state !== 'chasing') {
-        this.state = 'chasing';
+    if (this.state === 'chasing') {
+      if (distToPlayer > this.loseRange) {
+        this.state = 'wandering';
+        this.wanderTarget = null;
         this.path = [];
         this.pathIndex = 0;
       }
-      super.update(delta, playerPos);
+    } else if (distToPlayer <= this.detectRange) {
+      this.state = 'chasing';
+      this.path = [];
+      this.pathIndex = 0;
+    }
+
+    if (this.state === 'chasing') {
+      this.speed = this.speedChase;
+      super.update(delta, playerPos, 'chase');
       return;
     }
 
-    if (this.state !== 'wandering') {
-      this.state = 'wandering';
-      this.wanderTarget = null;
-      this.path = [];
-      this.pathIndex = 0;
+    this.speed = this.speedWander;
+
+    if (!this.wanderTarget || this.position.distanceTo(this.wanderTarget) < 1.1) {
+      this.pickWanderTarget();
     }
 
-    if (!this.wanderTarget || this.position.distanceTo(this.wanderTarget) < 1) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = Math.random() * this.wanderRadius;
-      this.wanderTarget = this.spawnPoint.clone().add(
-        new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist)
-      );
-      this.wanderTarget.y = this.spawnPoint.y;
-      this.path = [];
-      this.pathIndex = 0;
-    }
-
-    super.update(delta, this.wanderTarget);
+    super.update(delta, this.wanderTarget!, 'wander');
   }
 }
